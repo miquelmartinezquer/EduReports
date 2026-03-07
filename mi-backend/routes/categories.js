@@ -1,163 +1,287 @@
 // Rutes de categories
 const express = require('express');
 const router = express.Router();
-const mockData = require('../data/mockData');
 const requireAuth = require('../middleware/requireAuth');
+const readModel = require('../services/readModel');
+const { query } = require('../services/db');
 
 // Aplicar autenticació a totes les rutes
 router.use(requireAuth);
 
-// GET /userCategories - Obtenir categories globals + personalitzades de l'usuari
-router.get('/', (req, res) => {
-  const userId = req.session.userId;
-  
-  // Retornar categories globals + personalitzades de l'usuari
-  const globalCats = mockData.globalCategories || {};
-  const userCats = mockData.userCustomCategories[userId] || {};
-  
-  // Combinar categories globals i personalitzades
-  const allCategories = { ...globalCats, ...userCats };
-  
-  res.json(allCategories);
+const sqlError = (res, context, error) => {
+    console.error(`SQL ${context} error:`, error.message);
+    return res.status(500).json({ error: 'SQL ERROR' });
+};
+
+const ensureColorExists = async(colorKey) => {
+    if (!colorKey) return;
+
+    const rows = await query(
+        'SELECT color_key FROM available_colors WHERE color_key = ? LIMIT 1',
+        [colorKey],
+    );
+
+    if (!rows[0]) {
+        await query(
+            'INSERT INTO available_colors (color_key, name, hover_class) VALUES (?, ?, ?)',
+            [colorKey, colorKey, null],
+        );
+    }
+};
+
+// GET /userCategories - Obtenir categories personalitzades de l'usuari
+router.get('/', async(req, res) => {
+    const userId = req.session.userId;
+
+    try {
+        const categories = await query(
+            `SELECT uc.id, uc.category_key AS categoryKey, uc.name, uc.color_key AS color,
+                    uci.item_text AS itemText, uci.sort_order AS sortOrder
+             FROM user_categories uc
+             LEFT JOIN user_category_items uci ON uci.user_category_id = uc.id
+             WHERE uc.user_id = ?
+             ORDER BY uc.id, uci.sort_order, uci.id`,
+            [userId],
+        );
+
+        const grouped = {};
+        for (const row of categories) {
+            if (!grouped[row.categoryKey]) {
+                grouped[row.categoryKey] = {
+                    name: row.name,
+                    color: row.color,
+                    items: [],
+                };
+            }
+            if (row.itemText) grouped[row.categoryKey].items.push(row.itemText);
+        }
+
+        res.json(grouped);
+    } catch (error) {
+        sqlError(res, 'userCategories GET /', error);
+    }
 });
 
 // GET /userCategories/colors - Obtenir els colors disponibles
-router.get('/colors', (req, res) => {
-  res.json(mockData.availableColors);
+router.get('/colors', async(req, res) => {
+    try {
+        const colors = await readModel.getAvailableColors();
+        res.json(colors);
+    } catch (error) {
+        sqlError(res, 'userCategories GET /colors', error);
+    }
 });
 
 // POST /userCategories - Crear una nova categoria personalitzada
-router.post('/', (req, res) => {
-  const { key, name, color, items } = req.body;
-  const userId = req.session.userId;
+router.post('/', async(req, res) => {
+    const { key, name, color, items } = req.body;
+    const userId = req.session.userId;
 
-  if (!key || !name) {
-    return res.status(400).json({ error: 'key i name són requerits' });
-  }
+    if (!key || !name) {
+        return res.status(400).json({ error: 'key i name són requerits' });
+    }
 
-  // Inicialitzar categories de l'usuari si no existeixen
-  if (!mockData.userCustomCategories[userId]) {
-    mockData.userCustomCategories[userId] = {};
-  }
+    try {
+        await ensureColorExists(color || 'purple');
 
-  // Verificar que no existeixi ja (ni en globals ni en personalitzades)
-  if (mockData.globalCategories[key] || mockData.userCustomCategories[userId][key]) {
-    return res.status(400).json({ error: 'Aquesta categoria ja existeix' });
-  }
+        const duplicate = await query(
+            'SELECT id FROM user_categories WHERE user_id = ? AND category_key = ? LIMIT 1',
+            [userId, key],
+        );
 
-  mockData.userCustomCategories[userId][key] = {
-    name,
-    color: color || 'purple',
-    items: items || []
-  };
+        if (duplicate[0]) {
+            return res.status(400).json({ error: 'Aquesta categoria ja existeix' });
+        }
 
-  res.status(201).json({ 
-    success: true, 
-    category: mockData.userCustomCategories[userId][key],
-    key 
-  });
+        const result = await query(
+            'INSERT INTO user_categories (user_id, category_key, name, color_key) VALUES (?, ?, ?, ?)',
+            [userId, key, name, color || 'purple'],
+        );
+
+        if (Array.isArray(items)) {
+            for (let i = 0; i < items.length; i += 1) {
+                await query(
+                    'INSERT INTO user_category_items (user_category_id, item_text, sort_order) VALUES (?, ?, ?)',
+                    [result.insertId, items[i], i],
+                );
+            }
+        }
+
+        res.status(201).json({
+            success: true,
+            key,
+            category: {
+                name,
+                color: color || 'purple',
+                items: Array.isArray(items) ? items : [],
+            },
+        });
+    } catch (error) {
+        sqlError(res, 'userCategories POST /', error);
+    }
 });
 
 // PUT /userCategories/:key - Actualitzar una categoria personalitzada
-router.put('/:key', (req, res) => {
-  const { key } = req.params;
-  const { name, color, items } = req.body;
-  const userId = req.session.userId;
+router.put('/:key', async(req, res) => {
+    const { key } = req.params;
+    const { name, color, items } = req.body;
+    const userId = req.session.userId;
 
-  // Només es poden modificar categories personalitzades, no les globals
-  if (mockData.globalCategories[key]) {
-    return res.status(403).json({ error: 'No es poden modificar categories globals' });
-  }
+    try {
+        const rows = await query(
+            'SELECT id, name, color_key AS color FROM user_categories WHERE user_id = ? AND category_key = ? LIMIT 1',
+            [userId, key],
+        );
 
-  if (!mockData.userCustomCategories[userId] || !mockData.userCustomCategories[userId][key]) {
-    return res.status(404).json({ error: 'Categoria no trobada' });
-  }
+        if (!rows[0]) {
+            return res.status(404).json({ error: 'Categoria no trobada' });
+        }
 
-  if (name) mockData.userCustomCategories[userId][key].name = name;
-  if (color) mockData.userCustomCategories[userId][key].color = color;
-  if (items) mockData.userCustomCategories[userId][key].items = items;
+        const category = rows[0];
 
-  res.json({ 
-    success: true, 
-    category: mockData.userCustomCategories[userId][key] 
-  });
+        if (color) {
+            await ensureColorExists(color);
+        }
+
+        await query(
+            'UPDATE user_categories SET name = COALESCE(?, name), color_key = COALESCE(?, color_key) WHERE id = ?',
+            [name || null, color || null, category.id],
+        );
+
+        if (Array.isArray(items)) {
+            await query('DELETE FROM user_category_items WHERE user_category_id = ?', [category.id]);
+            for (let i = 0; i < items.length; i += 1) {
+                await query(
+                    'INSERT INTO user_category_items (user_category_id, item_text, sort_order) VALUES (?, ?, ?)',
+                    [category.id, items[i], i],
+                );
+            }
+        }
+
+        const itemRows = await query(
+            'SELECT item_text AS itemText FROM user_category_items WHERE user_category_id = ? ORDER BY sort_order, id',
+            [category.id],
+        );
+
+        res.json({
+            success: true,
+            category: {
+                name: name || category.name,
+                color: color || category.color,
+                items: itemRows.map((i) => i.itemText),
+            },
+        });
+    } catch (error) {
+        sqlError(res, 'userCategories PUT /:key', error);
+    }
 });
 
 // DELETE /userCategories/:key - Eliminar una categoria personalitzada
-router.delete('/:key', (req, res) => {
-  const { key } = req.params;
-  const userId = req.session.userId;
+router.delete('/:key', async(req, res) => {
+    const { key } = req.params;
+    const userId = req.session.userId;
 
-  // Només es poden eliminar categories personalitzades
-  if (mockData.globalCategories[key]) {
-    return res.status(403).json({ error: 'No es poden eliminar categories globals' });
-  }
+    try {
+        const result = await query(
+            'DELETE FROM user_categories WHERE user_id = ? AND category_key = ?',
+            [userId, key],
+        );
 
-  if (!mockData.userCustomCategories[userId] || !mockData.userCustomCategories[userId][key]) {
-    return res.status(404).json({ error: 'Categoria no trobada' });
-  }
+        if (!result.affectedRows) {
+            return res.status(404).json({ error: 'Categoria no trobada' });
+        }
 
-  delete mockData.userCustomCategories[userId][key];
-  res.json({ success: true, message: 'Categoria eliminada' });
+        res.json({ success: true, message: 'Categoria eliminada' });
+    } catch (error) {
+        sqlError(res, 'userCategories DELETE /:key', error);
+    }
 });
 
 // POST /userCategories/:key/items - Afegir un item a una categoria
-router.post('/:key/items', (req, res) => {
-  const { key } = req.params;
-  const { item } = req.body;
-  const userId = req.session.userId;
+router.post('/:key/items', async(req, res) => {
+    const { key } = req.params;
+    const { item } = req.body;
+    const userId = req.session.userId;
 
-  if (!item) {
-    return res.status(400).json({ error: 'item és requerit' });
-  }
+    if (!item) {
+        return res.status(400).json({ error: 'item és requerit' });
+    }
 
-  // Verificar si és categoria global o personalitzada
-  if (mockData.globalCategories[key]) {
-    // No es poden afegir items a categories globals directament
-    return res.status(403).json({ 
-      error: 'No es poden afegir items a categories globals. Crea una categoria personalitzada.' 
-    });
-  }
+    try {
+        const rows = await query(
+            'SELECT id FROM user_categories WHERE user_id = ? AND category_key = ? LIMIT 1',
+            [userId, key],
+        );
 
-  if (!mockData.userCustomCategories[userId]) {
-    mockData.userCustomCategories[userId] = {};
-  }
+        if (!rows[0]) {
+            return res.status(404).json({ error: 'Categoria no trobada' });
+        }
 
-  if (!mockData.userCustomCategories[userId][key]) {
-    return res.status(404).json({ error: 'Categoria no trobada' });
-  }
+        const categoryId = rows[0].id;
+        const orderRows = await query(
+            'SELECT COALESCE(MAX(sort_order), -1) + 1 AS nextOrder FROM user_category_items WHERE user_category_id = ?',
+            [categoryId],
+        );
 
-  mockData.userCustomCategories[userId][key].items.push(item);
-  res.status(201).json({ 
-    success: true, 
-    items: mockData.userCustomCategories[userId][key].items 
-  });
+        await query(
+            'INSERT INTO user_category_items (user_category_id, item_text, sort_order) VALUES (?, ?, ?)',
+            [categoryId, item, orderRows[0].nextOrder],
+        );
+
+        const itemRows = await query(
+            'SELECT item_text AS itemText FROM user_category_items WHERE user_category_id = ? ORDER BY sort_order, id',
+            [categoryId],
+        );
+
+        res.status(201).json({
+            success: true,
+            items: itemRows.map((i) => i.itemText),
+        });
+    } catch (error) {
+        sqlError(res, 'userCategories POST /:key/items', error);
+    }
 });
 
 // DELETE /userCategories/:key/items/:index - Eliminar un item d'una categoria
-router.delete('/:key/items/:index', (req, res) => {
-  const { key, index } = req.params;
-  const itemIndex = parseInt(index);
-  const userId = req.session.userId;
+router.delete('/:key/items/:index', async(req, res) => {
+    const { key, index } = req.params;
+    const itemIndex = parseInt(index);
+    const userId = req.session.userId;
 
-  // Només es poden eliminar items de categories personalitzades
-  if (mockData.globalCategories[key]) {
-    return res.status(403).json({ error: 'No es poden modificar categories globals' });
-  }
+    try {
+        const rows = await query(
+            'SELECT id FROM user_categories WHERE user_id = ? AND category_key = ? LIMIT 1',
+            [userId, key],
+        );
 
-  if (!mockData.userCustomCategories[userId] || !mockData.userCustomCategories[userId][key]) {
-    return res.status(404).json({ error: 'Categoria no trobada' });
-  }
+        if (!rows[0]) {
+            return res.status(404).json({ error: 'Categoria no trobada' });
+        }
 
-  if (itemIndex < 0 || itemIndex >= mockData.userCustomCategories[userId][key].items.length) {
-    return res.status(400).json({ error: 'Index invàlid' });
-  }
+        const categoryId = rows[0].id;
+        const itemRows = await query(
+            'SELECT id, item_text AS itemText FROM user_category_items WHERE user_category_id = ? ORDER BY sort_order, id',
+            [categoryId],
+        );
 
-  mockData.userCustomCategories[userId][key].items.splice(itemIndex, 1);
-  res.json({ 
-    success: true, 
-    items: mockData.userCustomCategories[userId][key].items 
-  });
+        if (itemIndex < 0 || itemIndex >= itemRows.length) {
+            return res.status(400).json({ error: 'Index invàlid' });
+        }
+
+        await query('DELETE FROM user_category_items WHERE id = ?', [itemRows[itemIndex].id]);
+
+        const afterRows = await query(
+            'SELECT item_text AS itemText FROM user_category_items WHERE user_category_id = ? ORDER BY sort_order, id',
+            [categoryId],
+        );
+
+        res.json({
+            success: true,
+            items: afterRows.map((i) => i.itemText),
+        });
+    } catch (error) {
+        sqlError(res, 'userCategories DELETE /:key/items/:index', error);
+    }
 });
 
 module.exports = router;

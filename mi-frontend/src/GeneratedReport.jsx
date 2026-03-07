@@ -1,6 +1,5 @@
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { useEffect, useState } from "react";
-import fetchWithAuth from "./utils/fetchWithAuth";
+import { useState } from "react";
 import NavBar from "./components/NavBar";
 
 function GeneratedReport() {
@@ -9,68 +8,13 @@ function GeneratedReport() {
   const [searchParams] = useSearchParams();
   const reportData = location.state?.reportData || null;
   const aiResponse = location.state?.aiResponse || null;
-  const [savedReportId, setSavedReportId] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
+  const [savedReportId] = useState(
+    location.state?.savedReportId || searchParams.get("savedReportId") || null,
+  );
 
   // Obtenir studentId i courseId de location.state o searchParams
   const studentId = location.state?.studentId || searchParams.get("studentId");
   const courseId = location.state?.courseId || searchParams.get("courseId");
-
-  // Guardar l'informe automàticament quan es genera
-  useEffect(() => {
-    const saveReport = async () => {
-      if (!aiResponse?.html || !studentId || !courseId || savedReportId) {
-        return; // No guardar si falta informació o ja s'ha guardat
-      }
-
-      setSaving(true);
-      setSaveError(null);
-
-      try {
-        const response = await fetchWithAuth(
-          `/courses/${courseId}/students/${studentId}/reports`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              title: `Informe de ${reportData?.student?.name || "Alumne"} - ${reportData?.student?.date || new Date().toLocaleDateString()}`,
-              htmlContent: aiResponse.html,
-            }),
-          },
-        );
-
-        if (response.success) {
-          setSavedReportId(response.report.id);
-          console.log(
-            "✅ Informe guardat correctament amb ID:",
-            response.report.id,
-          );
-          console.log("Informe complet:", response.report);
-
-          // Eliminar l'esborrany després de guardar l'informe
-          try {
-            await fetchWithAuth(`/drafts/${studentId}`, {
-              method: "DELETE",
-            });
-            console.log("Esborrany eliminat correctament");
-          } catch (draftError) {
-            console.error("Error eliminant esborrany:", draftError);
-            // No bloquejar si falla l'eliminació de l'esborrany
-          }
-        }
-      } catch (error) {
-        console.error("Error guardant informe:", error);
-        setSaveError(error.message);
-      } finally {
-        setSaving(false);
-      }
-    };
-
-    saveReport();
-  }, [aiResponse, studentId, courseId, reportData, savedReportId]);
 
   const handleBack = () => {
     if (courseId) {
@@ -90,7 +34,7 @@ function GeneratedReport() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4">
+    <div className="min-h-screen bg-gray-100">
       <NavBar />
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-lg shadow p-6">
@@ -157,37 +101,7 @@ function GeneratedReport() {
                 </div>
               </div>
 
-              {/* Estat de guardat */}
-              {saving && (
-                <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white animate-pulse">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="w-6 h-6 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-blue-800">
-                      Guardant informe...
-                    </h3>
-                    <p className="text-sm text-blue-600">
-                      Processant i desant a la base de dades
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {savedReportId && !saving && (
+              {savedReportId && (
                 <div className="flex items-center gap-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
                   <div className="w-12 h-12 bg-emerald-600 rounded-full flex items-center justify-center text-white">
                     <svg
@@ -222,7 +136,7 @@ function GeneratedReport() {
                 </div>
               )}
 
-              {saveError && (
+              {!savedReportId && (
                 <div className="flex items-center gap-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                   <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center text-white">
                     <svg
@@ -242,9 +156,11 @@ function GeneratedReport() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-red-800">
-                      Error guardant l'informe
+                      Informe no guardat
                     </h3>
-                    <p className="text-sm text-red-600">{saveError}</p>
+                    <p className="text-sm text-red-600">
+                      No s'ha rebut l'identificador de l'informe guardat
+                    </p>
                   </div>
                 </div>
               )}

@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import fetchWithAuth from "./utils/fetchWithAuth";
 import NavBar from "./components/NavBar";
 
+// Evita dobles execucions en React StrictMode (dev) per la mateixa generació.
+const inFlightGenerationKeys = new Set();
+
 function GeneratingReport() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -20,7 +23,7 @@ function GeneratingReport() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ reportData: data }),
+        body: JSON.stringify({ reportData: data, studentId, courseId }),
       });
       return jsonData;
     } catch (fetchError) {
@@ -34,6 +37,13 @@ function GeneratingReport() {
   useEffect(() => {
     if (!reportData) return;
 
+    const generationKey = `${studentId || "no-student"}:${courseId || "no-course"}:${JSON.stringify(reportData)}`;
+    if (inFlightGenerationKeys.has(generationKey)) {
+      return;
+    }
+
+    inFlightGenerationKeys.add(generationKey);
+
     // Actualitzar la barra de progrés
     const progressInterval = setInterval(() => {
       setProgress((prev) => {
@@ -42,27 +52,36 @@ function GeneratingReport() {
       });
     }, 100);
 
-    // Cridar la IA i navegar quan acabi
+    // Cridar la IA i guardar a BD dins del backend
     callAI(reportData)
-      .then((aiResponse) => {
+      .then(async (result) => {
+        const savedReportId = result?.report?.id;
+        if (!savedReportId) {
+          throw new Error("No s'ha pogut guardar l'informe a la BD");
+        }
+
+        try {
+          await fetchWithAuth(`/drafts/${studentId}`, {
+            method: "DELETE",
+          });
+        } catch (draftError) {
+          console.error("Error eliminant esborrany:", draftError);
+        }
+
         clearInterval(progressInterval);
         setProgress(100);
-        navigate("/generated-report", {
-          state: {
-            reportData,
-            aiResponse,
-            studentId,
-            courseId,
-          },
-        });
+        navigate(`/informe/${savedReportId}?studentId=${studentId}&courseId=${courseId}`);
       })
       .catch((err) => {
         clearInterval(progressInterval);
         setError(err.message);
+      })
+      .finally(() => {
+        inFlightGenerationKeys.delete(generationKey);
       });
 
     return () => clearInterval(progressInterval);
-  }, [reportData, navigate]);
+  }, [reportData, navigate, studentId, courseId]);
 
   const handleBack = () => {
     navigate("/");
@@ -70,7 +89,6 @@ function GeneratingReport() {
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4">
-      <NavBar />
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-6">

@@ -1,17 +1,14 @@
-const mockData = require('../data/mockData');
-
-
 async function sendMessage(systemPrompt, userMessage) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  const devMode = process.env.NODE_ENV === 'dev';
+  const developmentMode = process.env.NODE_ENV === 'dev';
 
-  console.log('Claude Service - Mode:', devMode ? 'DEV (mock)' : 'PROD (API real)');
-
-  if (devMode) {
-    console.log('Retornant resposta mock...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    return mockData.responseExample;
+  if (developmentMode) {
+    console.log('Claude Service - Mode: Simulació de resposta');
+    // Simulació de resposta per a desenvolupament
+    const { responseExample } = require("../data/mockData");
+    return responseExample;
   }
+  console.log('Claude Service - Mode: API real');
   
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY no està configurada');

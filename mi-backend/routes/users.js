@@ -1,66 +1,137 @@
 // Rutes d'usuaris
 const express = require('express');
 const router = express.Router();
-const { usuarios } = require('../data/mockData');
+const readModel = require('../services/readModel');
+const { query } = require('../services/db');
+
+const isDuplicateEmailError = (error) => {
+    return error && (error.code === 'ER_DUP_ENTRY' || error.errno === 1062);
+};
 
 // GET /usuarios - Obtenir tots els usuaris
-router.get('/', (req, res) => {
-  res.json(usuarios);
+router.get('/', async(req, res) => {
+    try {
+        const users = await readModel.getAllUsers();
+        res.json(users);
+    } catch (error) {
+        console.error('SQL users GET / error:', error.message);
+        res.status(500).json({ error: 'SQL ERROR' });
+    }
 });
 
 // GET /usuarios/:id - Obtenir un usuari per ID
-router.get('/:id', (req, res) => {
-  const usuario = usuarios.find(u => u.id === parseInt(req.params.id));
-  
-  if (!usuario) {
-    return res.status(404).json({ mensaje: 'Usuario no encontrado' });
-  }
-  
-  res.json(usuario);
+router.get('/:id', async(req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+        const usuario = await readModel.getUserById(userId);
+
+        if (!usuario) {
+            return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+        }
+
+        const { passwordHash, ...safeUser } = usuario;
+        res.json(safeUser);
+    } catch (error) {
+        console.error('SQL users GET /:id error:', error.message);
+        res.status(500).json({ error: 'SQL ERROR' });
+    }
 });
 
 // POST /usuarios - Crear un nou usuari
-router.post('/', (req, res) => {
-  if (!req.body.nombre || !req.body.email) {
-    return res.status(400).json({ 
-      error: 'El nombre y email son requeridos' 
-    });
-  }
+router.post('/', async(req, res) => {
+    if (!req.body.name || !req.body.email) {
+        return res.status(400).json({
+            error: 'name i email són requerits',
+        });
+    }
 
-  const nuevoUsuario = {
-    id: usuarios.length + 1,
-    nombre: req.body.nombre,
-    email: req.body.email
-  };
+    try {
+        const name = req.body.name.trim();
+        const email = req.body.email.toLowerCase().trim();
 
-  usuarios.push(nuevoUsuario);
-  res.status(201).json(nuevoUsuario);
+        const result = await query(
+            'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)',
+            [name, email, ''],
+        );
+
+        const rows = await query(
+            'SELECT id, name, email, created_at AS createdAt FROM users WHERE id = ? LIMIT 1',
+            [result.insertId],
+        );
+
+        res.status(201).json(rows[0]);
+    } catch (error) {
+        if (isDuplicateEmailError(error)) {
+            return res.status(409).json({ mensaje: 'El email ya existe' });
+        }
+
+        console.error('SQL users POST / error:', error.message);
+        res.status(500).json({ error: 'SQL ERROR' });
+    }
 });
 
 // PUT /usuarios/:id - Actualitzar un usuari
-router.put('/:id', (req, res) => {
-  const usuario = usuarios.find(u => u.id === parseInt(req.params.id));
-  
-  if (!usuario) {
-    return res.status(404).json({ mensaje: 'Usuario no encontrado' });
-  }
+router.put('/:id', async(req, res) => {
+    const userId = parseInt(req.params.id);
 
-  if (req.body.nombre) usuario.nombre = req.body.nombre;
-  if (req.body.email) usuario.email = req.body.email;
+    if (Number.isNaN(userId)) {
+        return res.status(400).json({ error: 'ID d\'usuari invàlid' });
+    }
 
-  res.json(usuario);
+    try {
+        const usuario = await readModel.getUserById(userId);
+
+        if (!usuario) {
+            return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+        }
+
+        const nextName = req.body.name ? req.body.name.trim() : usuario.name;
+        const nextEmail = req.body.email ? req.body.email.toLowerCase().trim() : usuario.email;
+
+        await query(
+            'UPDATE users SET name = ?, email = ? WHERE id = ?',
+            [nextName, nextEmail, userId],
+        );
+
+        const rows = await query(
+            'SELECT id, name, email, created_at AS createdAt FROM users WHERE id = ? LIMIT 1',
+            [userId],
+        );
+
+        res.json(rows[0]);
+    } catch (error) {
+        if (isDuplicateEmailError(error)) {
+            return res.status(409).json({ mensaje: 'El email ya existe' });
+        }
+
+        console.error('SQL users PUT /:id error:', error.message);
+        res.status(500).json({ error: 'SQL ERROR' });
+    }
 });
 
 // DELETE /usuarios/:id - Eliminar un usuari
-router.delete('/:id', (req, res) => {
-  const index = usuarios.findIndex(u => u.id === parseInt(req.params.id));
-  
-  if (index === -1) {
-    return res.status(404).json({ mensaje: 'Usuario no encontrado' });
-  }
+router.delete('/:id', async(req, res) => {
+    const userId = parseInt(req.params.id);
 
-  const usuarioEliminado = usuarios.splice(index, 1);
-  res.json({ mensaje: 'Usuario eliminado', usuario: usuarioEliminado[0] });
+    if (Number.isNaN(userId)) {
+        return res.status(400).json({ error: 'ID d\'usuari invàlid' });
+    }
+
+    try {
+        const userDeleted = await readModel.getUserById(userId);
+
+        if (!userDeleted) {
+            return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+        }
+
+        await query('DELETE FROM users WHERE id = ?', [userId]);
+
+        const { passwordHash, ...safeUser } = userDeleted;
+        res.json({ mensaje: 'Usuario eliminado', usuario: safeUser });
+    } catch (error) {
+        console.error('SQL users DELETE /:id error:', error.message);
+        res.status(500).json({ error: 'SQL ERROR' });
+    }
 });
 
 module.exports = router;

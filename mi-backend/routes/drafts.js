@@ -1,99 +1,105 @@
 const express = require('express');
 const router = express.Router();
-const mockData = require('../data/mockData');
 const requireAuth = require('../middleware/requireAuth');
+const readModel = require('../services/readModel');
+const { query } = require('../services/db');
 
 // GET /drafts/:studentId - Obtenir l'esborrany d'un alumne
-router.get('/:studentId', requireAuth, (req, res) => {
-  const { studentId } = req.params;
-  const userId = req.session.userId;
+router.get('/:studentId', requireAuth, async(req, res) => {
+    const { studentId } = req.params;
+    const userId = req.session.userId;
 
-  // Buscar l'esborrany per studentId i userId
-  const draft = mockData.reportDrafts.find(
-    d => d.studentId === parseInt(studentId) && d.userId === userId
-  );
+    try {
+        const draft = await readModel.getDraftByStudentAndUser(parseInt(studentId), userId);
 
-  if (!draft) {
-    return res.status(404).json({ error: 'No s\'ha trobat cap esborrany per aquest alumne' });
-  }
+        if (!draft) {
+            return res.status(404).json({ error: 'No s\'ha trobat cap esborrany per aquest alumne' });
+        }
 
-  res.json(draft);
+        res.json(draft);
+    } catch (error) {
+        console.error('SQL drafts GET /:studentId error:', error.message);
+        res.status(500).json({ error: 'SQL ERROR' });
+    }
 });
 
 // POST /drafts/:studentId - Crear o actualitzar l'esborrany d'un alumne
-router.post('/:studentId', requireAuth, (req, res) => {
-  const { studentId } = req.params;
-  const userId = req.session.userId;
-  const {
-    courseId,
-    elements,
-    studentName,
-    course,
-    language,
-    elementCounter
-  } = req.body;
+router.post('/:studentId', requireAuth, async(req, res) => {
+    const { studentId } = req.params;
+    const parsedStudentId = parseInt(studentId);
+    const userId = req.session.userId;
 
-  // Validar dades rebudes
-  if (!elements || !studentName || !course || !language || elementCounter === undefined) {
-    return res.status(400).json({ error: 'Falten dades obligatòries' });
-  }
+    const {
+        courseId,
+        elements,
+        studentName,
+        course,
+        language,
+        elementCounter,
+    } = req.body;
 
-  // Buscar si ja existeix un esborrany
-  const existingDraftIndex = mockData.reportDrafts.findIndex(
-    d => d.studentId === parseInt(studentId) && d.userId === userId
-  );
+    if (!elements || !studentName || !course || !language || elementCounter === undefined) {
+        return res.status(400).json({ error: 'Falten dades obligatòries' });
+    }
 
-  const draftData = {
-    studentId: parseInt(studentId),
-    courseId: courseId || null,
-    userId,
-    elements,
-    studentName,
-    course,
-    language,
-    elementCounter,
-    lastModified: new Date().toISOString()
-  };
+    try {
+        await query(
+            `INSERT INTO report_drafts (
+                student_id, course_id, user_id, elements_json, student_name,
+                course_label, language, element_counter, last_modified
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+                course_id = VALUES(course_id),
+                elements_json = VALUES(elements_json),
+                student_name = VALUES(student_name),
+                course_label = VALUES(course_label),
+                language = VALUES(language),
+                element_counter = VALUES(element_counter),
+                last_modified = NOW()`,
+            [
+                parsedStudentId,
+                courseId || null,
+                userId,
+                JSON.stringify(elements),
+                studentName,
+                course,
+                language,
+                elementCounter,
+            ],
+        );
 
-  if (existingDraftIndex !== -1) {
-    // Actualitzar esborrany existent
-    mockData.reportDrafts[existingDraftIndex] = {
-      ...mockData.reportDrafts[existingDraftIndex],
-      ...draftData
-    };
-    res.json({
-      message: 'Esborrany actualitzat correctament',
-      draft: mockData.reportDrafts[existingDraftIndex]
-    });
-  } else {
-    // Crear nou esborrany
-    const newDraft = {
-      id: mockData.draftIdCounter++,
-      ...draftData
-    };
-    mockData.reportDrafts.push(newDraft);
-    res.status(201).json({
-      message: 'Esborrany creat correctament',
-      draft: newDraft
-    });
-  }
+        const draft = await readModel.getDraftByStudentAndUser(parsedStudentId, userId);
+
+        res.json({
+            message: 'Esborrany guardat correctament',
+            draft,
+        });
+    } catch (error) {
+        console.error('SQL drafts POST /:studentId error:', error.message);
+        res.status(500).json({ error: 'SQL ERROR' });
+    }
 });
 
 // DELETE /drafts/:studentId - Eliminar l'esborrany d'un alumne
-router.delete('/:studentId', requireAuth, (req, res) => {
-  const { studentId } = req.params;
-  const userId = req.session.userId;
+router.delete('/:studentId', requireAuth, async(req, res) => {
+    const { studentId } = req.params;
+    const userId = req.session.userId;
 
-  const draftIndex = mockData.reportDrafts.findIndex(
-    d => d.studentId === parseInt(studentId) && d.userId === userId
-  );
+    try {
+        const result = await query(
+            'DELETE FROM report_drafts WHERE student_id = ? AND user_id = ?',
+            [parseInt(studentId), userId],
+        );
 
-  if (draftIndex === -1) {
-    return res.status(404).json({ error: 'No s\'ha trobat cap esborrany per eliminar' });
-  }
+        if (!result.affectedRows) {
+            return res.status(404).json({ error: 'No s\'ha trobat cap esborrany per eliminar' });
+        }
 
-  mockData.reportDrafts.splice(draftIndex, 1);
-  res.json({ message: 'Esborrany eliminat correctament' });
+        res.json({ message: 'Esborrany eliminat correctament' });
+    } catch (error) {
+        console.error('SQL drafts DELETE /:studentId error:', error.message);
+        res.status(500).json({ error: 'SQL ERROR' });
+    }
 });
 
 module.exports = router;

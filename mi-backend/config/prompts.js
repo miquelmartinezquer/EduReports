@@ -50,16 +50,12 @@ ESTRUCTURA HTML I CLASSES:
 1. CONTENIDOR:
    <div class='prose max-w-none'>
 
-2. CAPÇALERA AMB NOM DE L'ALUMNE:
-   <h1 class='text-3xl font-bold text-gray-900 mb-2'>Informe de [NOM ALUMNE]</h1>
-   <p class='text-gray-500 mb-6'>[CURS] - [DATA ACTUAL]</p>
-
-3. TÍTOLS DE SECCIÓ (Han de coincidir amb els títols del JSON):
+2. TÍTOLS DE SECCIÓ (Han de coincidir amb els títols del JSON):
    <h2 class='text-2xl font-bold text-indigo-700 mt-8 mb-4 border-b pb-2 border-indigo-100'>
       [TÍTOL DE LA SECCIÓ]
    </h2>
 
-4. PARÀGRAFS:
+3. PARÀGRAFS:
    <p class='text-gray-700 leading-relaxed mb-4 text-lg'>
       [Text desenvolupant els items de la secció]
    </p>

@@ -5,6 +5,7 @@ import NavBar from "./components/NavBar";
 function MyCourses() {
   const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
+  const [sharedCourses, setSharedCourses] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newCourseName, setNewCourseName] = useState("");
   const [newCourseLevel, setNewCourseLevel] = useState("I3");
@@ -23,22 +24,36 @@ function MyCourses() {
   const loadCourses = async () => {
     try {
       setLoading(true);
-      const response = await fetch("http://localhost:3000/courses", {
-        credentials: "include",
-      });
-      const data = await response.json();
-      console.log("Dades rebudes del backend:", data);
+      const [myCoursesResponse, sharedCoursesResponse] = await Promise.all([
+        fetch("http://localhost:3000/courses", {
+          credentials: "include",
+        }),
+        fetch("http://localhost:3000/courses/shared", {
+          credentials: "include",
+        }),
+      ]);
 
-      // Assegurar que data sigui un array
-      if (Array.isArray(data)) {
-        setCourses(data);
+      const myCoursesData = await myCoursesResponse.json();
+      const sharedCoursesData = await sharedCoursesResponse.json();
+
+      // Assegurar que les dades siguin arrays
+      if (Array.isArray(myCoursesData)) {
+        setCourses(myCoursesData);
       } else {
-        console.error("Les dades rebudes no són un array:", data);
+        console.error("Les dades rebudes de cursos propis no són un array:", myCoursesData);
         setCourses([]);
+      }
+
+      if (Array.isArray(sharedCoursesData)) {
+        setSharedCourses(sharedCoursesData);
+      } else {
+        console.error("Les dades rebudes de cursos compartits no són un array:", sharedCoursesData);
+        setSharedCourses([]);
       }
     } catch (error) {
       console.error("Error carregant cursos:", error);
       setCourses([]);
+      setSharedCourses([]);
     } finally {
       setLoading(false);
     }
@@ -252,6 +267,92 @@ function MyCourses() {
                 </div>
               ))
             )}
+          </div>
+
+          {/* Cursos compartits amb mi */}
+          <div className="mt-10">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Cursos compartits amb mi
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Cursos on tens accés com a col·laborador/a
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {loading ? (
+                <div className="col-span-full bg-white rounded-lg shadow p-12 text-center">
+                  <p className="text-gray-500 text-sm">Carregant cursos compartits...</p>
+                </div>
+              ) : sharedCourses.length === 0 ? (
+                <div className="col-span-full bg-white rounded-lg shadow p-12 text-center">
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No tens cursos compartits
+                  </h3>
+                  <p className="text-gray-500 text-sm">
+                    Quan et comparteixin un curs, apareixerà aquí
+                  </p>
+                </div>
+              ) : (
+                sharedCourses.map((course) => (
+                  <div
+                    key={course.id}
+                    className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => navigate(`/cursos/${course.id}`)}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                        <svg
+                          className="w-6 h-6 text-indigo-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                          />
+                        </svg>
+                      </div>
+                      <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">
+                        Compartit
+                      </span>
+                    </div>
+
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      {course.name}
+                    </h3>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="inline-block px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded">
+                        {course.level || "Sense nivell"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Creat el {formatDate(course.createdAt)}
+                    </p>
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <span className="flex items-center gap-1">
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5l7 7-7 7"
+                          />
+                        </svg>
+                        Veure detalls
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 

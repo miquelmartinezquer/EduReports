@@ -57,7 +57,7 @@ function ReportView() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 py-8 px-4">
+      <div className="min-h-screen bg-gray-100">
         <NavBar />
         <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-lg shadow p-12 text-center">
@@ -120,7 +120,7 @@ function ReportView() {
 
   if (!report) {
     return (
-      <div className="min-h-screen bg-gray-100 py-8 px-4">
+      <div className="min-h-screen bg-gray-100">
         <NavBar />
         <p>Informe no trobat</p>
       </div>
@@ -128,7 +128,7 @@ function ReportView() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4">
+    <div className="min-h-screen bg-gray-100">
       <NavBar />
       <div className="max-w-4xl mx-auto">
         {/* Header */}

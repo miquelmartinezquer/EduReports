@@ -14,7 +14,8 @@ function CourseDetail() {
   const [categories, setCategories] = useState({});
   const [studentReports, setStudentReports] = useState({}); // { studentId: report }
   const [studentDrafts, setStudentDrafts] = useState({}); // { studentId: draft }
-  const [availableColors] = useState([
+  const [pendingInvitations, setPendingInvitations] = useState([]);
+  const [availableColors, setAvailableColors] = useState([
     { key: "purple", name: "Porpra" },
     { key: "blue", name: "Blau" },
     { key: "green", name: "Verd" },
@@ -38,8 +39,6 @@ function CourseDetail() {
 
   // Form states
   const [newCollaborator, setNewCollaborator] = useState({
-    name: "",
-    role: "Professor/a",
     email: "",
   });
   const [newClass, setNewClass] = useState({ name: "" });
@@ -55,6 +54,8 @@ function CourseDetail() {
   useEffect(() => {
     loadCourseDetails();
     loadCategories();
+    loadAvailableColors();
+    loadPendingInvitations();
   }, [courseId]);
 
   useEffect(() => {
@@ -78,24 +79,27 @@ function CourseDetail() {
 
   // Col·laboradors
   const addCollaborator = async () => {
-    if (newCollaborator.name.trim() && newCollaborator.email.trim()) {
-      try {
-        const data = await fetchWithAuth(`/courses/${courseId}/collaborators`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(newCollaborator),
-        });
-        if (data.success) {
-          setCourse((prev) => ({
-            ...prev,
-            collaborators: [...prev.collaborators, data.collaborator],
-          }));
-          setNewCollaborator({ name: "", role: "Professor/a", email: "" });
-          setShowAddCollaboratorModal(false);
-        }
-      } catch (error) {
-        console.error("Error afegint col·laborador:", error);
+    if (!newCollaborator.email.trim()) return;
+
+    try {
+      const data = await fetchWithAuth(`/invitations/by-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: newCollaborator.email,
+          courseId: parseInt(courseId, 10),
+        }),
+      });
+
+      if (data.invitation || data.message) {
+        setNewCollaborator({ email: "" });
+        setShowAddCollaboratorModal(false);
+        await loadPendingInvitations();
+        alert("Invitació enviada correctament");
       }
+    } catch (error) {
+      console.error("Error enviant invitació:", error);
+      alert(error.message || "No s'ha pogut enviar la invitació");
     }
   };
 
@@ -120,6 +124,39 @@ function CourseDetail() {
       if (error.message.includes("creador")) {
         alert("No es pot eliminar el creador del curs");
       }
+    }
+  };
+
+  const loadPendingInvitations = async () => {
+    try {
+      const data = await fetchWithAuth(`/invitations/course/${courseId}/pending`);
+      setPendingInvitations(
+        Array.isArray(data?.invitations) ? data.invitations : [],
+      );
+    } catch (error) {
+      console.error("Error carregant invitacions pendents:", error);
+      setPendingInvitations([]);
+    }
+  };
+
+  const deletePendingInvitation = async (invitationId) => {
+    if (!window.confirm("Segur que vols eliminar aquesta invitació pendent?")) {
+      return;
+    }
+
+    try {
+      const data = await fetchWithAuth(`/invitations/${invitationId}`, {
+        method: "DELETE",
+      });
+
+      if (data.success) {
+        setPendingInvitations((prev) =>
+          prev.filter((invitation) => invitation.id !== invitationId),
+        );
+      }
+    } catch (error) {
+      console.error("Error eliminant invitació pendent:", error);
+      alert(error.message || "No s'ha pogut eliminar la invitació");
     }
   };
 
@@ -223,6 +260,22 @@ function CourseDetail() {
   };
 
   // Categories i Items
+  const loadAvailableColors = async () => {
+    try {
+      const data = await fetchWithAuth(`/courses/${courseId}/categories/colors`);
+      if (Array.isArray(data) && data.length > 0) {
+        setAvailableColors(
+          data.map((color) => ({
+            key: color.key,
+            name: color.name,
+          })),
+        );
+      }
+    } catch (error) {
+      console.error("Error carregant colors:", error);
+    }
+  };
+
   const loadCategories = async () => {
     try {
       const data = await fetchWithAuth(`/courses/${courseId}/categories`);
@@ -406,7 +459,8 @@ function CourseDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4">
+    <div className="min-h-screen bg-gray-100">
+      <NavBar />
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -846,7 +900,7 @@ function CourseDetail() {
                           Propietari
                         </span>
                       )}
-                      {user && collab.email === user.email && (
+                      {user && collab.userId === user.id && (
                         <span
                           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
                           title="Aquest ets tu"
@@ -858,6 +912,53 @@ function CourseDetail() {
                     <p className="text-sm text-gray-600">{collab.email}</p>
                   </div>
                 ))
+              )}
+            </div>
+
+            <div className="mt-8 bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Invitacions Pendents ({pendingInvitations.length})
+                </h3>
+                <button
+                  onClick={loadPendingInvitations}
+                  className="text-sm px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Actualitzar
+                </button>
+              </div>
+
+              {pendingInvitations.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">
+                  No hi ha invitacions pendents en aquest curs
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {pendingInvitations.map((invitation) => (
+                    <div
+                      key={invitation.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-200"
+                    >
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {invitation.userName || "Usuari"}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {invitation.userEmail}
+                        </p>
+                      </div>
+
+                      {course.userId === user?.id && (
+                        <button
+                          onClick={() => deletePendingInvitation(invitation.id)}
+                          className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -1142,50 +1243,12 @@ function CourseDetail() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Afegir Col·laborador
+              Enviar Invitació
             </h2>
             <div className="space-y-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nom
-                </label>
-                <input
-                  type="text"
-                  value={newCollaborator.name}
-                  onChange={(e) =>
-                    setNewCollaborator({
-                      ...newCollaborator,
-                      name: e.target.value,
-                    })
-                  }
-                  placeholder="Ex: Maria Garcia"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Rol
-                </label>
-                <select
-                  value={newCollaborator.role}
-                  onChange={(e) =>
-                    setNewCollaborator({
-                      ...newCollaborator,
-                      role: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                >
-                  <option value="Professor/a">Professor/a</option>
-                  <option value="Tutor/a">Tutor/a</option>
-                  <option value="Assistent">Assistent</option>
-                  <option value="Coordinador/a">Coordinador/a</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email
+                  Correu electrònic
                 </label>
                 <input
                   type="email"
@@ -1196,9 +1259,13 @@ function CourseDetail() {
                       email: e.target.value,
                     })
                   }
-                  placeholder="email@escola.cat"
+                  placeholder="Ex: profe@escola.cat"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  autoFocus
                 />
+                <p className="text-xs text-gray-500 mt-2">
+                  S'enviarà una invitació a aquest usuari perquè accepti el curs.
+                </p>
               </div>
             </div>
             <div className="flex gap-3">
@@ -1206,8 +1273,6 @@ function CourseDetail() {
                 onClick={() => {
                   setShowAddCollaboratorModal(false);
                   setNewCollaborator({
-                    name: "",
-                    role: "Professor/a",
                     email: "",
                   });
                 }}
@@ -1217,12 +1282,10 @@ function CourseDetail() {
               </button>
               <button
                 onClick={addCollaborator}
-                disabled={
-                  !newCollaborator.name.trim() || !newCollaborator.email.trim()
-                }
+                disabled={!newCollaborator.email.trim()}
                 className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
-                Afegir
+                Enviar
               </button>
             </div>
           </div>
