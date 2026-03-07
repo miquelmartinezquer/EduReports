@@ -58,13 +58,17 @@ router.post('/by-email', async(req, res) => {
         }
 
         const result = await query(
-            `INSERT INTO course_invitations (user_id, course_id, status)
-             VALUES (?, ?, 'pending')`,
-            [user.id, parsedCourseId],
+            `INSERT INTO course_invitations (user_id, course_id, inviter_id, status)
+             VALUES (?, ?, ?, 'pending')`,
+            [user.id, parsedCourseId, req.session.userId],
         );
 
         const invitationRows = await query(
-            'SELECT id, user_id AS userId, course_id AS courseId, status, invited_at AS invitedAt FROM course_invitations WHERE id = ? LIMIT 1',
+            `SELECT ci.id, ci.user_id AS userId, ci.course_id AS courseId, ci.status, ci.invited_at AS invitedAt,
+                    inviter.name AS inviterName
+             FROM course_invitations ci
+             LEFT JOIN users inviter ON inviter.id = ci.inviter_id
+             WHERE ci.id = ? LIMIT 1`,
             [result.insertId],
         );
 
@@ -90,9 +94,11 @@ router.get('/course/:courseId/pending', async(req, res) => {
 
         const rows = await query(
             `SELECT ci.id, ci.user_id AS userId, ci.course_id AS courseId, ci.status,
-                    ci.invited_at AS invitedAt, u.name AS userName, u.email AS userEmail
+                    ci.invited_at AS invitedAt, u.name AS userName, u.email AS userEmail,
+                    inviter.name AS inviterName
              FROM course_invitations ci
              INNER JOIN users u ON u.id = ci.user_id
+             LEFT JOIN users inviter ON inviter.id = ci.inviter_id
              WHERE ci.course_id = ? AND ci.status = 'pending'
              ORDER BY ci.invited_at DESC, ci.id DESC`,
             [courseId],

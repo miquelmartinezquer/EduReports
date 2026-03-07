@@ -126,13 +126,19 @@ function NavBar() {
                       const invitationId =
                         invitation.id ?? invitation.invitationId;
 
+                      const courseLabel =
+                        invitation.courseName || `Curs #${invitation.courseId}`;
+                      const inviter = invitation.inviterName;
+
                       return (
                         <div
                           key={invitationId}
                           className="px-4 py-3 border-b border-gray-100 last:border-b-0"
                         >
                         <p className="text-sm font-medium text-gray-900">
-                          {invitation.courseName || `Curs #${invitation.courseId}`}
+                          {inviter
+                            ? `${inviter} t'ha convidat a col·laborar al curs: ${courseLabel}`
+                            : courseLabel}
                         </p>
                         {invitation.courseLevel && (
                           <p className="text-xs text-gray-500 mt-0.5">

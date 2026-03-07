@@ -152,11 +152,13 @@ CREATE TABLE course_invitations (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id INT UNSIGNED NOT NULL,
   course_id INT UNSIGNED NOT NULL,
+  inviter_id INT UNSIGNED,
   status ENUM('pending', 'accepted', 'rejected', 'cancelled') NOT NULL DEFAULT 'pending',
   invited_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_course_invitations_user_id (user_id),
   KEY idx_course_invitations_course_id (course_id),
+  KEY idx_course_invitations_inviter_id (inviter_id),
   KEY idx_course_invitations_status (status),
   CONSTRAINT fk_course_invitations_user
     FOREIGN KEY (user_id) REFERENCES users(id)
@@ -165,6 +167,10 @@ CREATE TABLE course_invitations (
   CONSTRAINT fk_course_invitations_course
     FOREIGN KEY (course_id) REFERENCES courses(id)
     ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT fk_course_invitations_inviter
+    FOREIGN KEY (inviter_id) REFERENCES users(id)
+    ON DELETE SET NULL
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

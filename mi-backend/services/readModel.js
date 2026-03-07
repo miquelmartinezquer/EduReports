@@ -185,9 +185,11 @@ const getAvailableColors = async() => {
 const getInvitationsByUser = async(userId) => {
     return query(
         `SELECT ci.id, ci.user_id AS userId, ci.course_id AS courseId, ci.status,
-              ci.invited_at AS invitedAt, c.name AS courseName, c.level AS courseLevel
+              ci.invited_at AS invitedAt, c.name AS courseName, c.level AS courseLevel,
+              u.name AS inviterName
        FROM course_invitations ci
        INNER JOIN courses c ON c.id = ci.course_id
+       LEFT JOIN users u ON u.id = ci.inviter_id
        WHERE ci.user_id = ?
        ORDER BY ci.id DESC`,
         [userId],
