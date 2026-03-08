@@ -1,10 +1,12 @@
 import React from "react";
+import { Button } from "@/components/ui/button";
 
 function AddSectionButton({ onClick }) {
   return (
-    <button
+    <Button
       onClick={onClick}
-      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-50 hover:bg-indigo-100 border-2 border-dashed border-indigo-300 hover:border-indigo-400 rounded-lg transition-colors text-indigo-700 font-medium"
+      variant="outline"
+      className="w-full h-12 border-2 border-dashed border-indigo-300 bg-indigo-50/40 text-indigo-700 font-semibold hover:bg-indigo-50 hover:border-indigo-400 transition-all"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -17,7 +19,7 @@ function AddSectionButton({ onClick }) {
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
       </svg>
       Afegir nou apartat
-    </button>
+    </Button>
   );
 }
 

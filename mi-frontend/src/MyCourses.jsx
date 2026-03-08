@@ -1,6 +1,27 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import NavBar from "./components/NavBar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/sonner";
 
 function MyCourses() {
   const navigate = useNavigate();
@@ -19,7 +40,35 @@ function MyCourses() {
 
   useEffect(() => {
     loadCourses();
+
+    const handleSharedCoursesUpdated = () => {
+      loadCourses();
+    };
+
+    window.addEventListener("shared-courses-updated", handleSharedCoursesUpdated);
+
+    return () => {
+      window.removeEventListener("shared-courses-updated", handleSharedCoursesUpdated);
+    };
   }, []);
+
+  const mapCreateCourseError = (message) => {
+    const normalized = (message || "").toLowerCase();
+
+    if (normalized.includes("el nom del curs és requerit")) {
+      return "El nom del curs és obligatori";
+    }
+
+    if (normalized.includes("el nivell del curs és requerit")) {
+      return "El nivell del curs és obligatori";
+    }
+
+    if (normalized.includes("sql error")) {
+      return "Hi ha hagut un error de base de dades en crear el curs";
+    }
+
+    return message || "No s'ha pogut crear el curs";
+  };
 
   const loadCourses = async () => {
     try {
@@ -60,31 +109,41 @@ function MyCourses() {
   };
 
   const createCourse = async () => {
-    if (newCourseName.trim()) {
-      try {
-        const response = await fetch("http://localhost:3000/courses", {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: newCourseName,
-            level: newCourseLevel,
-          }),
-        });
+    if (!newCourseName.trim()) {
+      toast.error("Introdueix el nom del curs");
+      return;
+    }
 
-        const data = await response.json();
+    try {
+      const response = await fetch("http://localhost:3000/courses", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: newCourseName,
+          level: newCourseLevel,
+        }),
+      });
 
-        if (data.success) {
-          setCourses([...courses, data.course]);
-          setNewCourseName("");
-          setNewCourseLevel("I3");
-          setShowCreateModal(false);
-        }
-      } catch (error) {
-        console.error("Error creant curs:", error);
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        toast.error(mapCreateCourseError(data.error || data.message));
+        return;
       }
+
+      if (data.success) {
+        setCourses([...courses, data.course]);
+        setNewCourseName("");
+        setNewCourseLevel("I3");
+        setShowCreateModal(false);
+        toast.success("Curs creat correctament");
+      }
+    } catch (error) {
+      console.error("Error creant curs:", error);
+      toast.error("No s'ha pogut crear el curs");
     }
   };
 
@@ -99,16 +158,18 @@ function MyCourses() {
 
       if (data.success) {
         setCourses(courses.filter((course) => course.id !== id));
+        toast.success("Curs eliminat correctament");
       }
     } catch (error) {
       console.error("Error eliminant curs:", error);
+      toast.error("No s'ha pogut eliminar el curs");
     }
   };
 
   return (
     <>
       <NavBar />
-      <div className="min-h-screen bg-gray-100 py-8 px-4">
+      <div className="-mt-1 min-h-screen bg-gray-100 py-8 px-4">
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <div className="mb-8 flex items-center justify-between">
@@ -124,9 +185,10 @@ function MyCourses() {
 
           {/* Botó crear curs */}
           <div className="mb-6">
-            <button
+            <Button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold transition-colors shadow-sm"
+              variant="success"
+              size="lg"
             >
               <svg
                 className="w-5 h-5"
@@ -142,7 +204,7 @@ function MyCourses() {
                 />
               </svg>
               Crear Nou Curs
-            </button>
+            </Button>
           </div>
 
           {/* Llista de cursos */}
@@ -213,27 +275,49 @@ function MyCourses() {
                         />
                       </svg>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteCourse(course.id);
-                      }}
-                      className="text-gray-400 hover:text-red-600 transition-colors"
-                    >
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          onClick={(e) => e.stopPropagation()}
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-gray-400 hover:text-red-600 transition-colors"
+                          aria-label={`Eliminar curs ${course.name}`}
+                        >
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                        </Button>
+                      </AlertDialogTrigger>
+
+                      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Eliminar curs?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Aquesta accio eliminara el curs <strong>{course.name}</strong> i no es pot desfer.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel·lar</AlertDialogCancel>
+                          <AlertDialogAction
+                            variant="destructive"
+                            onClick={() => deleteCourse(course.id)}
+                          >
+                            Si, eliminar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
                     {course.name}
@@ -356,64 +440,78 @@ function MyCourses() {
           </div>
         </div>
 
-        {/* Modal de crear curs */}
-        {showCreateModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                Crear Nou Curs
-              </h2>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nom del Curs
-                </label>
-                <input
-                  type="text"
-                  value={newCourseName}
-                  onChange={(e) => setNewCourseName(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && createCourse()}
-                  placeholder="Ex: Matemàtiques I3"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                  autoFocus
-                />
-              </div>
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nivell
-                </label>
-                <select
-                  value={newCourseLevel}
-                  onChange={(e) => setNewCourseLevel(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                >
-                  <option value="Llar d'infants">Llar d'infants</option>
-                  <option value="I3">I3</option>
-                  <option value="I4">I4</option>
-                  <option value="I5">I5</option>
-                </select>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    setNewCourseName("");
-                    setNewCourseLevel("I3");
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
-                >
-                  Cancel·lar
-                </button>
-                <button
-                  onClick={createCourse}
-                  disabled={!newCourseName.trim()}
-                  className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  Crear
-                </button>
-              </div>
+        <Dialog
+          open={showCreateModal}
+          onOpenChange={(open) => {
+            setShowCreateModal(open);
+            if (!open) {
+              setNewCourseName("");
+              setNewCourseLevel("I3");
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Crear Nou Curs</DialogTitle>
+              <DialogDescription>
+                Introdueix les dades del nou curs.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nom del Curs
+              </label>
+              <input
+                type="text"
+                value={newCourseName}
+                onChange={(e) => setNewCourseName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && createCourse()}
+                placeholder="Ex: Matemàtiques I3"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                autoFocus
+              />
             </div>
-          </div>
-        )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nivell
+              </label>
+              <select
+                value={newCourseLevel}
+                onChange={(e) => setNewCourseLevel(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              >
+                <option value="Llar d'infants">Llar d'infants</option>
+                <option value="I3">I3</option>
+                <option value="I4">I4</option>
+                <option value="I5">I5</option>
+              </select>
+            </div>
+
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewCourseName("");
+                  setNewCourseLevel("I3");
+                }}
+                variant="outline"
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+              >
+                Cancel·lar
+              </Button>
+              <Button
+                onClick={createCourse}
+                disabled={!newCourseName.trim()}
+                variant="success"
+                className="flex-1"
+              >
+                Crear
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </>
   );

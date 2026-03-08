@@ -1,10 +1,13 @@
 import React from "react";
+import { Button } from "@/components/ui/button";
 
 function AddItemButton({ onClick }) {
   return (
-    <button
+    <Button
       onClick={onClick}
-      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 hover:border-emerald-300 rounded-lg transition-colors text-emerald-700 text-sm font-medium"
+      variant="success"
+      size="sm"
+      className="flex-1"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -17,7 +20,7 @@ function AddItemButton({ onClick }) {
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
       </svg>
       Afegir item
-    </button>
+    </Button>
   );
 }
 

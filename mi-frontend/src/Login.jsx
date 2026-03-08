@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, register } = useAuth();
+  const { login } = useAuth();
 
-  const [isLoginMode, setIsLoginMode] = useState(true);
   const [formData, setFormData] = useState({
-    name: "",
     email: "",
     password: "",
   });
@@ -24,21 +23,7 @@ function Login() {
     setLoading(true);
 
     try {
-      let result;
-      if (isLoginMode) {
-        result = await login(formData.email, formData.password);
-      } else {
-        if (!formData.name.trim()) {
-          setError("El nom és obligatori");
-          setLoading(false);
-          return;
-        }
-        result = await register(
-          formData.name,
-          formData.email,
-          formData.password,
-        );
-      }
+      const result = await login(formData.email, formData.password);
 
       if (result.success) {
         navigate(from, { replace: true });
@@ -55,12 +40,6 @@ function Login() {
       ...formData,
       [e.target.name]: e.target.value,
     });
-  };
-
-  const toggleMode = () => {
-    setIsLoginMode(!isLoginMode);
-    setError("");
-    setFormData({ name: "", email: "", password: "" });
   };
 
   return (
@@ -86,31 +65,12 @@ function Login() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Sistema d'Informes
           </h1>
-          <p className="text-gray-600">
-            {isLoginMode ? "Inicia sessió per continuar" : "Crea el teu compte"}
-          </p>
+          <p className="text-gray-600">Inicia sessió per continuar</p>
         </div>
 
         {/* Formulari */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {!isLoginMode && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nom complet
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  placeholder="Maria Garcia"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  required={!isLoginMode}
-                />
-              </div>
-            )}
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Correu electrònic
@@ -140,9 +100,6 @@ function Login() {
                 required
                 minLength={6}
               />
-              {!isLoginMode && (
-                <p className="mt-1 text-xs text-gray-500">Mínim 6 caràcters</p>
-              )}
             </div>
 
             {error && (
@@ -151,43 +108,14 @@ function Login() {
               </div>
             )}
 
-            <button
+            <Button
               type="submit"
               disabled={loading}
               className="w-full py-3 px-4 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {loading
-                ? "Processant..."
-                : isLoginMode
-                  ? "Iniciar Sessió"
-                  : "Registrar-se"}
-            </button>
+              {loading ? "Processant..." : "Iniciar Sessió"}
+            </Button>
           </form>
-
-          <div className="mt-6 text-center">
-            <button
-              onClick={toggleMode}
-              className="text-indigo-600 hover:text-indigo-700 font-medium text-sm"
-            >
-              {isLoginMode
-                ? "No tens compte? Registra't"
-                : "Ja tens compte? Inicia sessió"}
-            </button>
-          </div>
-
-          {/* Credencials de prova */}
-          {isLoginMode && (
-            <div className="mt-6 p-4 bg-indigo-50 rounded-lg">
-              <p className="text-xs font-semibold text-indigo-900 mb-2">
-                Credencials de prova:
-              </p>
-              <p className="text-xs text-indigo-700">
-                📧 maria@escola.cat
-                <br />
-                🔑 password123
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>

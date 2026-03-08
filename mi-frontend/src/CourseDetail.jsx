@@ -3,6 +3,28 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
 import fetchWithAuth from "./utils/fetchWithAuth";
 import NavBar from "./components/NavBar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "@/components/ui/sonner";
 
 function CourseDetail() {
   const { courseId } = useParams();
@@ -50,6 +72,13 @@ function CourseDetail() {
   const [newCategoryColor, setNewCategoryColor] = useState("purple");
   const [addingItemTo, setAddingItemTo] = useState(null);
   const [newItemText, setNewItemText] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: "",
+    description: "",
+    actionLabel: "Si, eliminar",
+    action: null,
+  });
 
   useEffect(() => {
     loadCourseDetails();
@@ -77,6 +106,56 @@ function CourseDetail() {
     }
   };
 
+  const openConfirmDialog = ({ title, description, action, actionLabel }) => {
+    setConfirmDialog({
+      open: true,
+      title,
+      description,
+      action,
+      actionLabel: actionLabel || "Si, eliminar",
+    });
+  };
+
+  const closeConfirmDialog = () => {
+    setConfirmDialog((prev) => ({
+      ...prev,
+      open: false,
+      action: null,
+    }));
+  };
+
+  const handleConfirmDialogAction = async () => {
+    try {
+      if (confirmDialog.action) {
+        await confirmDialog.action();
+      }
+    } finally {
+      closeConfirmDialog();
+    }
+  };
+
+  const mapInviteSendError = (rawMessage) => {
+    const message = (rawMessage || "").toLowerCase();
+
+    if (message.includes("usuario no encontrado")) {
+      return "L'usuari no existeix";
+    }
+    if (message.includes("el usuario ya es colaborador del curso")) {
+      return "Aquest usuari ja esta al grup";
+    }
+    if (message.includes("ya existe una invitación pendiente para este usuario")) {
+      return "Ja existeix una invitació pendent per aquest usuari";
+    }
+    if (message.includes("curso no encontrado")) {
+      return "El curs no existeix";
+    }
+    if (message.includes("email i courseid són requerits")) {
+      return "Falten dades per enviar la invitació";
+    }
+
+    return rawMessage || "No s'ha pogut enviar la invitació";
+  };
+
   // Col·laboradors
   const addCollaborator = async () => {
     if (!newCollaborator.email.trim()) return;
@@ -95,15 +174,18 @@ function CourseDetail() {
         setNewCollaborator({ email: "" });
         setShowAddCollaboratorModal(false);
         await loadPendingInvitations();
-        alert("Invitació enviada correctament");
+        toast.success("Invitació enviada correctament");
       }
     } catch (error) {
       console.error("Error enviant invitació:", error);
-      alert(error.message || "No s'ha pogut enviar la invitació");
+      toast.error(mapInviteSendError(error.message));
     }
   };
 
-  const deleteCollaborator = async (collaboratorId) => {
+  const deleteCollaborator = async (
+    collaboratorId,
+    { shouldLeaveCourse = false } = {},
+  ) => {
     try {
       const data = await fetchWithAuth(
         `/courses/${courseId}/collaborators/${collaboratorId}`,
@@ -112,19 +194,52 @@ function CourseDetail() {
         },
       );
       if (data.success) {
+        if (shouldLeaveCourse) {
+          toast.success("Has sortit del curs");
+          navigate("/");
+          return;
+        }
+
         setCourse((prev) => ({
           ...prev,
           collaborators: prev.collaborators.filter(
             (c) => c.id !== collaboratorId,
           ),
         }));
+        toast.success("Col·laborador eliminat correctament");
       }
     } catch (error) {
       console.error("Error eliminant col·laborador:", error);
       if (error.message.includes("creador")) {
-        alert("No es pot eliminar el creador del curs");
+        toast.error("No es pot eliminar el creador del curs");
+      } else {
+        toast.error("No s'ha pogut eliminar el col·laborador");
       }
     }
+  };
+
+  const requestDeleteCollaborator = (collab) => {
+    const isCurrentUser = user && collab.userId === user.id;
+
+    openConfirmDialog({
+      title: isCurrentUser ? "Sortir del curs?" : "Eliminar col·laborador?",
+      description: (
+        <>
+          {isCurrentUser ? (
+            <>
+              Sortiras del curs <strong>{course?.name}</strong> i perdras l'accés.
+            </>
+          ) : (
+            <>
+              S'eliminara el col·laborador <strong>{collab.name}</strong> del curs.
+            </>
+          )}
+        </>
+      ),
+      action: () =>
+        deleteCollaborator(collab.id, { shouldLeaveCourse: isCurrentUser }),
+      actionLabel: isCurrentUser ? "Si, sortir" : "Si, eliminar",
+    });
   };
 
   const loadPendingInvitations = async () => {
@@ -140,10 +255,6 @@ function CourseDetail() {
   };
 
   const deletePendingInvitation = async (invitationId) => {
-    if (!window.confirm("Segur que vols eliminar aquesta invitació pendent?")) {
-      return;
-    }
-
     try {
       const data = await fetchWithAuth(`/invitations/${invitationId}`, {
         method: "DELETE",
@@ -153,11 +264,25 @@ function CourseDetail() {
         setPendingInvitations((prev) =>
           prev.filter((invitation) => invitation.id !== invitationId),
         );
+        toast.success("Invitació pendent eliminada");
       }
     } catch (error) {
       console.error("Error eliminant invitació pendent:", error);
-      alert(error.message || "No s'ha pogut eliminar la invitació");
+      toast.error(error.message || "No s'ha pogut eliminar la invitació");
     }
+  };
+
+  const requestDeletePendingInvitation = (invitation) => {
+    openConfirmDialog({
+      title: "Eliminar invitació pendent?",
+      description: (
+        <>
+          S'eliminara la invitació pendent de{" "}
+          <strong>{invitation.userEmail}</strong>.
+        </>
+      ),
+      action: () => deletePendingInvitation(invitation.id),
+    });
   };
 
   // Classes
@@ -176,9 +301,11 @@ function CourseDetail() {
           }));
           setNewClass({ name: "" });
           setShowAddClassModal(false);
+          toast.success("Classe creada correctament");
         }
       } catch (error) {
         console.error("Error creant classe:", error);
+        toast.error("No s'ha pogut crear la classe");
       }
     }
   };
@@ -196,9 +323,11 @@ function CourseDetail() {
           ...prev,
           classes: prev.classes.filter((c) => c.id !== classId),
         }));
+        toast.success("Classe eliminada correctament");
       }
     } catch (error) {
       console.error("Error eliminant classe:", error);
+      toast.error("No s'ha pogut eliminar la classe");
     }
   };
 
@@ -229,9 +358,11 @@ function CourseDetail() {
           setNewStudent({ name: "", age: "" });
           setShowAddStudentModal(false);
           setSelectedClassId(null);
+          toast.success("Alumne afegit correctament");
         }
       } catch (error) {
         console.error("Error afegint alumne:", error);
+        toast.error("No s'ha pogut afegir l'alumne");
       }
     }
   };
@@ -253,9 +384,11 @@ function CourseDetail() {
               : c,
           ),
         }));
+        toast.success("Alumne eliminat correctament");
       }
     } catch (error) {
       console.error("Error eliminant alumne:", error);
+      toast.error("No s'ha pogut eliminar l'alumne");
     }
   };
 
@@ -331,7 +464,7 @@ function CourseDetail() {
 
   const createCategory = async () => {
     if (!newCategoryName.trim()) {
-      alert("Introdueix el nom de la categoria");
+      toast.error("Introdueix el nom de la categoria");
       return;
     }
     const key = newCategoryName
@@ -355,16 +488,15 @@ function CourseDetail() {
         setShowNewCategory(false);
         setNewCategoryName("");
         setNewCategoryColor("purple");
+        toast.success("Categoria creada correctament");
       }
     } catch (error) {
       console.error("Error creant categoria:", error);
-      alert("Error creant categoria");
+      toast.error("Error creant categoria");
     }
   };
 
   const deleteCategory = async (key) => {
-    if (!window.confirm("Segur que vols eliminar aquesta categoria?")) return;
-
     try {
       const data = await fetchWithAuth(
         `/courses/${courseId}/categories/${key}`,
@@ -374,15 +506,30 @@ function CourseDetail() {
       );
       if (data.success) {
         await loadCategories();
+        toast.success("Categoria eliminada correctament");
       }
     } catch (error) {
       console.error("Error eliminant categoria:", error);
+      toast.error("No s'ha pogut eliminar la categoria");
     }
+  };
+
+  const requestDeleteCategory = (key, categoryName) => {
+    openConfirmDialog({
+      title: "Eliminar categoria?",
+      description: (
+        <>
+          S'eliminara la categoria <strong>{categoryName}</strong> amb tots els
+          seus items.
+        </>
+      ),
+      action: () => deleteCategory(key),
+    });
   };
 
   const addItem = async (categoryKey) => {
     if (!newItemText.trim()) {
-      alert("Introdueix el text de l'item");
+      toast.error("Introdueix el text de l'item");
       return;
     }
 
@@ -399,15 +546,15 @@ function CourseDetail() {
         await loadCategories();
         setAddingItemTo(null);
         setNewItemText("");
+        toast.success("Item afegit correctament");
       }
     } catch (error) {
       console.error("Error afegint item:", error);
+      toast.error("No s'ha pogut afegir l'item");
     }
   };
 
   const removeItem = async (categoryKey, itemIndex) => {
-    if (!window.confirm("Segur que vols eliminar aquest item?")) return;
-
     try {
       const data = await fetchWithAuth(
         `/courses/${courseId}/categories/${categoryKey}/items/${itemIndex}`,
@@ -417,10 +564,24 @@ function CourseDetail() {
       );
       if (data.success) {
         await loadCategories();
+        toast.success("Item eliminat correctament");
       }
     } catch (error) {
       console.error("Error eliminant item:", error);
+      toast.error("No s'ha pogut eliminar l'item");
     }
+  };
+
+  const requestRemoveItem = (categoryKey, itemIndex, itemText) => {
+    openConfirmDialog({
+      title: "Eliminar item?",
+      description: (
+        <>
+          S'eliminara l'item <strong>{itemText}</strong>.
+        </>
+      ),
+      action: () => removeItem(categoryKey, itemIndex),
+    });
   };
 
   if (loading) {
@@ -464,12 +625,13 @@ function CourseDetail() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <button
+          <Button
             onClick={() => navigate("/")}
+            variant="ghost"
             className="mb-4 px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
           >
             ← Tornar als Cursos
-          </button>
+          </Button>
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-indigo-100 rounded-lg flex items-center justify-center">
@@ -510,36 +672,39 @@ function CourseDetail() {
         {/* Tabs */}
         <div className="mb-6 bg-white rounded-lg shadow">
           <div className="flex border-b">
-            <button
+            <Button
               onClick={() => setActiveTab("classes")}
-              className={`flex-1 px-6 py-4 font-semibold transition-colors ${
+              variant="ghost"
+              className={`flex-1 px-6 py-4 font-semibold transition-colors rounded-none ${
                 activeTab === "classes"
-                  ? "text-indigo-600 border-b-2 border-indigo-600"
+                  ? "text-indigo-600"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
               Classes ({course.classes?.length || 0})
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setActiveTab("collaborators")}
-              className={`flex-1 px-6 py-4 font-semibold transition-colors ${
+              variant="ghost"
+              className={`flex-1 px-6 py-4 font-semibold transition-colors rounded-none ${
                 activeTab === "collaborators"
-                  ? "text-indigo-600 border-b-2 border-indigo-600"
+                  ? "text-indigo-600"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
               Col·laboradors ({course.collaborators?.length || 0})
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setActiveTab("items")}
-              className={`flex-1 px-6 py-4 font-semibold transition-colors ${
+              variant="ghost"
+              className={`flex-1 px-6 py-4 font-semibold transition-colors rounded-none ${
                 activeTab === "items"
-                  ? "text-indigo-600 border-b-2 border-indigo-600"
+                  ? "text-indigo-600"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
               Items ({Object.keys(categories).length || 0})
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -547,9 +712,11 @@ function CourseDetail() {
         {activeTab === "classes" && (
           <div>
             <div className="mb-6">
-              <button
+              <Button
                 onClick={() => setShowAddClassModal(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold transition-colors shadow-sm"
+                variant="brand"
+                size="lg"
+                className="flex items-center gap-2"
               >
                 <svg
                   className="w-5 h-5"
@@ -565,7 +732,7 @@ function CourseDetail() {
                   />
                 </svg>
                 Afegir Classe
-              </button>
+              </Button>
             </div>
 
             <div className="space-y-4">
@@ -610,24 +777,42 @@ function CourseDetail() {
                           </p>
                         )}
                       </div>
-                      <button
-                        onClick={() => deleteClass(classItem.id)}
-                        className="text-gray-400 hover:text-red-600 transition-colors"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon-sm" className="text-gray-400 hover:text-red-600 transition-colors">
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
+                            </svg>
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Eliminar classe?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              S'eliminara la classe <strong>{classItem.name}</strong> amb tots els seus alumnes.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel·lar</AlertDialogCancel>
+                            <AlertDialogAction
+                              variant="destructive"
+                              onClick={() => deleteClass(classItem.id)}
+                            >
+                              Si, eliminar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
 
                     <div className="border-t pt-4">
@@ -635,15 +820,16 @@ function CourseDetail() {
                         <h4 className="font-semibold text-gray-900">
                           Alumnes ({classItem.students?.length || 0})
                         </h4>
-                        <button
+                        <Button
                           onClick={() => {
                             setSelectedClassId(classItem.id);
                             setShowAddStudentModal(true);
                           }}
-                          className="text-sm px-3 py-1 bg-indigo-100 text-indigo-600 rounded hover:bg-indigo-200 transition-colors"
+                          variant="brand"
+                          size="sm"
                         >
                           + Afegir Alumne
-                        </button>
+                        </Button>
                       </div>
 
                       {classItem.students?.length === 0 ? (
@@ -671,36 +857,56 @@ function CourseDetail() {
                                       </p>
                                     )}
                                   </div>
-                                  <button
-                                    onClick={() =>
-                                      deleteStudent(classItem.id, student.id)
-                                    }
-                                    className="text-gray-400 hover:text-red-600 transition-colors"
-                                  >
-                                    <svg
-                                      className="w-4 h-4"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M6 18L18 6M6 6l12 12"
-                                      />
-                                    </svg>
-                                  </button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="ghost" size="icon-sm" className="text-gray-400 hover:text-red-600 transition-colors">
+                                        <svg
+                                          className="w-4 h-4"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M6 18L18 6M6 6l12 12"
+                                          />
+                                        </svg>
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Eliminar alumne?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          S'eliminara l'alumne <strong>{student.name}</strong> d'aquesta classe.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel·lar</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          variant="destructive"
+                                          onClick={() =>
+                                            deleteStudent(classItem.id, student.id)
+                                          }
+                                        >
+                                          Si, eliminar
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
                                 </div>
                                 <div className="flex gap-2">
                                   {hasReport ? (
-                                    <button
+                                    <Button
                                       onClick={() =>
                                         navigate(
                                           `/informe/${hasReport.id}?studentId=${student.id}&courseId=${courseId}`,
                                         )
                                       }
-                                      className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-1"
+                                      variant="success"
+                                      size="sm"
+                                      className="flex-1 flex items-center justify-center gap-1"
                                     >
                                       <svg
                                         className="w-4 h-4"
@@ -722,15 +928,17 @@ function CourseDetail() {
                                         />
                                       </svg>
                                       Veure Informe
-                                    </button>
+                                    </Button>
                                   ) : hasDraft ? (
-                                    <button
+                                    <Button
                                       onClick={() =>
                                         navigate(
                                           `/crear-informe?studentId=${student.id}&studentName=${encodeURIComponent(student.name)}&courseId=${courseId}&courseName=${encodeURIComponent(course.level || course.name)}`,
                                         )
                                       }
-                                      className="flex-1 px-3 py-2 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 transition-colors flex items-center justify-center gap-1"
+                                      variant="warning"
+                                      size="sm"
+                                      className="flex-1 flex items-center justify-center gap-1"
                                     >
                                       <svg
                                         className="w-4 h-4"
@@ -746,15 +954,17 @@ function CourseDetail() {
                                         />
                                       </svg>
                                       Seguir Editant
-                                    </button>
+                                    </Button>
                                   ) : (
-                                    <button
+                                    <Button
                                       onClick={() =>
                                         navigate(
                                           `/crear-informe?studentId=${student.id}&studentName=${encodeURIComponent(student.name)}&courseId=${courseId}&courseName=${encodeURIComponent(course.level || course.name)}`,
                                         )
                                       }
-                                      className="flex-1 px-3 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1"
+                                      variant="brand"
+                                      size="sm"
+                                      className="flex-1 flex items-center justify-center gap-1"
                                     >
                                       <svg
                                         className="w-4 h-4"
@@ -770,7 +980,7 @@ function CourseDetail() {
                                         />
                                       </svg>
                                       Crear Informe
-                                    </button>
+                                    </Button>
                                   )}
                                 </div>
                               </div>
@@ -789,9 +999,11 @@ function CourseDetail() {
         {activeTab === "collaborators" && (
           <div>
             <div className="mb-6">
-              <button
+              <Button
                 onClick={() => setShowAddCollaboratorModal(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold transition-colors shadow-sm"
+                variant="success"
+                size="lg"
+                className="flex items-center gap-2"
               >
                 <svg
                   className="w-5 h-5"
@@ -807,7 +1019,7 @@ function CourseDetail() {
                   />
                 </svg>
                 Afegir Col·laborador
-              </button>
+              </Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -836,11 +1048,15 @@ function CourseDetail() {
                   </p>
                 </div>
               ) : (
-                course.collaborators?.map((collab) => (
-                  <div
-                    key={collab.id}
-                    className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow"
-                  >
+                course.collaborators?.map((collab) => {
+                  const isOwner = Boolean(collab.isOwner);
+                  const isCurrentUser = user && collab.userId === user.id;
+
+                  return (
+                    <div
+                      key={collab.id}
+                      className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow"
+                    >
                     <div className="flex items-start justify-between mb-4">
                       <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
                         <svg
@@ -857,26 +1073,38 @@ function CourseDetail() {
                           />
                         </svg>
                       </div>
-                      {!collab.isOwner && (
-                        <button
-                          onClick={() => deleteCollaborator(collab.id)}
-                          className="text-gray-400 hover:text-red-600 transition-colors"
-                        >
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                      {!isOwner &&
+                        (isCurrentUser ? (
+                          <Button
+                            onClick={() => requestDeleteCollaborator(collab)}
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
-                        </button>
-                      )}
+                            Sortir del curs
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => requestDeleteCollaborator(collab)}
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-gray-400 hover:text-red-600 transition-colors"
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </Button>
+                        ))}
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-1">
                       {collab.name}
@@ -885,7 +1113,7 @@ function CourseDetail() {
                       <p className="text-sm text-indigo-600 font-medium">
                         {collab.role}
                       </p>
-                      {collab.isOwner && (
+                      {isOwner && (
                         <span
                           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800"
                           title="Propietari del curs"
@@ -900,7 +1128,7 @@ function CourseDetail() {
                           Propietari
                         </span>
                       )}
-                      {user && collab.userId === user.id && (
+                      {isCurrentUser && (
                         <span
                           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
                           title="Aquest ets tu"
@@ -911,7 +1139,8 @@ function CourseDetail() {
                     </div>
                     <p className="text-sm text-gray-600">{collab.email}</p>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -920,12 +1149,14 @@ function CourseDetail() {
                 <h3 className="text-lg font-semibold text-gray-900">
                   Invitacions Pendents ({pendingInvitations.length})
                 </h3>
-                <button
+                <Button
                   onClick={loadPendingInvitations}
+                  variant="outline"
+                  size="sm"
                   className="text-sm px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   Actualitzar
-                </button>
+                </Button>
               </div>
 
               {pendingInvitations.length === 0 ? (
@@ -949,12 +1180,16 @@ function CourseDetail() {
                       </div>
 
                       {course.userId === user?.id && (
-                        <button
-                          onClick={() => deletePendingInvitation(invitation.id)}
+                        <Button
+                          onClick={() =>
+                            requestDeletePendingInvitation(invitation)
+                          }
+                          variant="destructive"
+                          size="sm"
                           className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
                         >
                           Eliminar
-                        </button>
+                        </Button>
                       )}
                     </div>
                   ))}
@@ -966,11 +1201,12 @@ function CourseDetail() {
 
         {activeTab === "items" && (
           <div>
-            {/* Botó per afegir nova categoria */}
-            {!showNewCategory && (
-              <button
+            <div className="mb-6">
+              <Button
                 onClick={() => setShowNewCategory(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 mb-6 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors bg-white"
+                variant="brand"
+                size="lg"
+                className="flex items-center gap-2"
               >
                 <svg
                   className="w-5 h-5"
@@ -985,83 +1221,9 @@ function CourseDetail() {
                     d="M12 4v16m8-8H4"
                   />
                 </svg>
-                Afegir Nova Categoria
-              </button>
-            )}
-
-            {/* Formulari nova categoria */}
-            {showNewCategory && (
-              <div className="p-4 mb-6 border border-indigo-200 rounded-lg bg-indigo-50 space-y-4">
-                <h4 className="font-semibold text-gray-900">Nova Categoria</h4>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nom
-                  </label>
-                  <input
-                    type="text"
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && createCategory()}
-                    placeholder="Ex: Motricitat i Moviment"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Color
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {availableColors.map((color) => {
-                      const colorClasses = {
-                        purple: "bg-purple-500",
-                        blue: "bg-blue-500",
-                        green: "bg-green-500",
-                        orange: "bg-orange-500",
-                        red: "bg-red-500",
-                        pink: "bg-pink-500",
-                        yellow: "bg-yellow-500",
-                        teal: "bg-teal-500",
-                        cyan: "bg-cyan-500",
-                        indigo: "bg-indigo-500",
-                        slate: "bg-slate-500",
-                        emerald: "bg-emerald-500",
-                      };
-                      return (
-                        <button
-                          key={color.key}
-                          onClick={() => setNewCategoryColor(color.key)}
-                          className={`w-10 h-10 rounded-lg ${colorClasses[color.key] || "bg-gray-400"} ${
-                            newCategoryColor === color.key
-                              ? "ring-2 ring-offset-2 ring-indigo-500"
-                              : ""
-                          }`}
-                          title={color.name}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={createCategory}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
-                  >
-                    Crear Categoria
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowNewCategory(false);
-                      setNewCategoryName("");
-                      setNewCategoryColor("purple");
-                    }}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel·lar
-                  </button>
-                </div>
-              </div>
-            )}
+                Afegir Categoria
+              </Button>
+            </div>
 
             {/* Llista de categories */}
             {Object.keys(categories).length === 0 ? (
@@ -1127,8 +1289,10 @@ function CourseDetail() {
                             </p>
                           </div>
                         </div>
-                        <button
-                          onClick={() => deleteCategory(key)}
+                        <Button
+                          onClick={() => requestDeleteCategory(key, category.name)}
+                          variant="ghost"
+                          size="icon-sm"
                           className="p-2 text-gray-400 hover:text-red-600 transition-colors"
                         >
                           <svg
@@ -1144,7 +1308,7 @@ function CourseDetail() {
                               d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                             />
                           </svg>
-                        </button>
+                        </Button>
                       </div>
 
                       <div className="p-4 space-y-2">
@@ -1156,8 +1320,10 @@ function CourseDetail() {
                             <span className="text-sm text-gray-700">
                               {item}
                             </span>
-                            <button
-                              onClick={() => removeItem(key, index)}
+                            <Button
+                              onClick={() => requestRemoveItem(key, index, item)}
+                              variant="ghost"
+                              size="icon-xs"
                               className="p-1 text-gray-400 hover:text-red-600 transition-colors"
                             >
                               <svg
@@ -1173,7 +1339,7 @@ function CourseDetail() {
                                   d="M6 18L18 6M6 6l12 12"
                                 />
                               </svg>
-                            </button>
+                            </Button>
                           </div>
                         ))}
 
@@ -1191,25 +1357,27 @@ function CourseDetail() {
                               className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
                               autoFocus
                             />
-                            <button
+                            <Button
                               onClick={() => addItem(key)}
                               className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
                             >
                               Afegir
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               onClick={() => {
                                 setAddingItemTo(null);
                                 setNewItemText("");
                               }}
+                              variant="outline"
                               className="px-3 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50"
                             >
                               Cancel·lar
-                            </button>
+                            </Button>
                           </div>
                         ) : (
-                          <button
+                          <Button
                             onClick={() => setAddingItemTo(key)}
+                            variant="outline"
                             className="w-full flex items-center justify-center gap-1 px-3 py-2 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg border border-dashed border-indigo-300"
                           >
                             <svg
@@ -1226,7 +1394,7 @@ function CourseDetail() {
                               />
                             </svg>
                             Afegir item
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -1238,167 +1406,333 @@ function CourseDetail() {
         )}
       </div>
 
-      {/* Modal Afegir Col·laborador */}
-      {showAddCollaboratorModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Enviar Invitació
-            </h2>
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Correu electrònic
-                </label>
-                <input
-                  type="email"
-                  value={newCollaborator.email}
-                  onChange={(e) =>
-                    setNewCollaborator({
-                      ...newCollaborator,
-                      email: e.target.value,
-                    })
-                  }
-                  placeholder="Ex: profe@escola.cat"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                  autoFocus
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  S'enviarà una invitació a aquest usuari perquè accepti el curs.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowAddCollaboratorModal(false);
-                  setNewCollaborator({
-                    email: "",
-                  });
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
-              >
-                Cancel·lar
-              </button>
-              <button
-                onClick={addCollaborator}
-                disabled={!newCollaborator.email.trim()}
-                className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                Enviar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AlertDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeConfirmDialog();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDialog.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel·lar</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleConfirmDialogAction}
+            >
+              {confirmDialog.actionLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {/* Modal Afegir Classe */}
-      {showAddClassModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Crear Nova Classe
-            </h2>
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nom de la Classe
+      <Dialog
+        open={showAddCollaboratorModal}
+        onOpenChange={(open) => {
+          setShowAddCollaboratorModal(open);
+          if (!open) {
+            setNewCollaborator({ email: "" });
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enviar Invitació</DialogTitle>
+            <DialogDescription>
+              Introdueix el correu electrònic del col·laborador.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Correu electrònic
+            </label>
+            <input
+              type="email"
+              value={newCollaborator.email}
+              onChange={(e) =>
+                setNewCollaborator({
+                  ...newCollaborator,
+                  email: e.target.value,
+                })
+              }
+              onKeyDown={(e) => e.key === "Enter" && addCollaborator()}
+              placeholder="Ex: profe@escola.cat"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              autoFocus
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              S'enviarà una invitació a aquest usuari perquè accepti el curs.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowAddCollaboratorModal(false);
+                setNewCollaborator({ email: "" });
+              }}
+              variant="outline"
+              className="flex-1"
+            >
+              Cancel·lar
+            </Button>
+            <Button
+              onClick={addCollaborator}
+              disabled={!newCollaborator.email.trim()}
+              variant="success"
+              className="flex-1"
+            >
+              Enviar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showNewCategory}
+        onOpenChange={(open) => {
+          setShowNewCategory(open);
+          if (!open) {
+            setNewCategoryName("");
+            setNewCategoryColor("purple");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Afegir Nova Categoria</DialogTitle>
+            <DialogDescription>
+              Defineix el nom i el color de la categoria.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nom
               </label>
               <input
                 type="text"
-                value={newClass.name}
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && createCategory()}
+                placeholder="Ex: Motricitat i Moviment"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Color
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {availableColors.map((color) => {
+                  const colorClasses = {
+                    purple: "!bg-purple-500 hover:!bg-purple-500",
+                    blue: "!bg-blue-500 hover:!bg-blue-500",
+                    green: "!bg-green-500 hover:!bg-green-500",
+                    orange: "!bg-orange-500 hover:!bg-orange-500",
+                    red: "!bg-red-500 hover:!bg-red-500",
+                    pink: "!bg-pink-500 hover:!bg-pink-500",
+                    yellow: "!bg-yellow-500 hover:!bg-yellow-500",
+                    teal: "!bg-teal-500 hover:!bg-teal-500",
+                    cyan: "!bg-cyan-500 hover:!bg-cyan-500",
+                    indigo: "!bg-indigo-500 hover:!bg-indigo-500",
+                    slate: "!bg-slate-500 hover:!bg-slate-500",
+                    emerald: "!bg-emerald-500 hover:!bg-emerald-500",
+                  };
+                  return (
+                    <Button
+                      key={color.key}
+                      onClick={() => setNewCategoryColor(color.key)}
+                      variant="ghost"
+                      size="icon"
+                      className={`w-10 h-10 rounded-lg ${colorClasses[color.key] || "bg-gray-400"} ${
+                        newCategoryColor === color.key
+                          ? "ring-2 ring-offset-2 ring-indigo-500"
+                          : ""
+                      }`}
+                      title={color.name}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowNewCategory(false);
+                setNewCategoryName("");
+                setNewCategoryColor("purple");
+              }}
+              variant="outline"
+              className="flex-1"
+            >
+              Cancel·lar
+            </Button>
+            <Button
+              onClick={createCategory}
+              variant="brand"
+              disabled={!newCategoryName.trim()}
+              className="flex-1"
+            >
+              Crear Categoria
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showAddClassModal}
+        onOpenChange={(open) => {
+          setShowAddClassModal(open);
+          if (!open) {
+            setNewClass({ name: "" });
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crear Nova Classe</DialogTitle>
+            <DialogDescription>
+              Introdueix el nom de la classe.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nom de la Classe
+            </label>
+            <input
+              type="text"
+              value={newClass.name}
+              onChange={(e) =>
+                setNewClass({ ...newClass, name: e.target.value })
+              }
+              onKeyDown={(e) => e.key === "Enter" && addClass()}
+              placeholder="Ex: Grup A - Matins"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              autoFocus
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowAddClassModal(false);
+                setNewClass({ name: "" });
+              }}
+              variant="outline"
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+            >
+              Cancel·lar
+            </Button>
+            <Button
+              onClick={addClass}
+              disabled={!newClass.name.trim()}
+              variant="brand"
+              className="flex-1"
+            >
+              Crear
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showAddStudentModal}
+        onOpenChange={(open) => {
+          setShowAddStudentModal(open);
+          if (!open) {
+            setNewStudent({ name: "", age: "" });
+            setSelectedClassId(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Afegir Alumne</DialogTitle>
+            <DialogDescription>
+              Completa les dades de l'alumne.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nom de l'Alumne
+              </label>
+              <input
+                type="text"
+                value={newStudent.name}
                 onChange={(e) =>
-                  setNewClass({ ...newClass, name: e.target.value })
+                  setNewStudent({ ...newStudent, name: e.target.value })
                 }
-                onKeyPress={(e) => e.key === "Enter" && addClass()}
-                placeholder="Ex: Grup A - Matins"
+                onKeyDown={(e) => e.key === "Enter" && addStudent()}
+                placeholder="Ex: Marc Garcia"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 autoFocus
               />
             </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowAddClassModal(false);
-                  setNewClass({ name: "" });
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
-              >
-                Cancel·lar
-              </button>
-              <button
-                onClick={addClass}
-                disabled={!newClass.name.trim()}
-                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                Crear
-              </button>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Edat (opcional)
+              </label>
+              <input
+                type="number"
+                value={newStudent.age}
+                onChange={(e) =>
+                  setNewStudent({ ...newStudent, age: e.target.value })
+                }
+                placeholder="Ex: 5"
+                min="0"
+                max="100"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Modal Afegir Alumne */}
-      {showAddStudentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Afegir Alumne
-            </h2>
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nom de l'Alumne
-                </label>
-                <input
-                  type="text"
-                  value={newStudent.name}
-                  onChange={(e) =>
-                    setNewStudent({ ...newStudent, name: e.target.value })
-                  }
-                  placeholder="Ex: Marc Garcia"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Edat (opcional)
-                </label>
-                <input
-                  type="number"
-                  value={newStudent.age}
-                  onChange={(e) =>
-                    setNewStudent({ ...newStudent, age: e.target.value })
-                  }
-                  placeholder="Ex: 5"
-                  min="0"
-                  max="100"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowAddStudentModal(false);
-                  setNewStudent({ name: "", age: "" });
-                  setSelectedClassId(null);
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
-              >
-                Cancel·lar
-              </button>
-              <button
-                onClick={addStudent}
-                disabled={!newStudent.name.trim()}
-                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                Afegir
-              </button>
-            </div>
+            <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
+              <AlertTitle>Privacitat</AlertTitle>
+              <AlertDescription>
+                Els noms i dades dels alumnes mai es compartiran amb la IA.
+              </AlertDescription>
+            </Alert>
           </div>
-        </div>
-      )}
+
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowAddStudentModal(false);
+                setNewStudent({ name: "", age: "" });
+                setSelectedClassId(null);
+              }}
+              variant="outline"
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+            >
+              Cancel·lar
+            </Button>
+            <Button
+              onClick={addStudent}
+              disabled={!newStudent.name.trim()}
+              variant="brand"
+              className="flex-1"
+            >
+              Afegir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

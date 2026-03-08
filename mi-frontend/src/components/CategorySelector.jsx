@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from "react";
 import { COLOR_CLASSES, DEFAULT_COLOR } from "../services/colorHelper";
+import { Button } from "@/components/ui/button";
 
 // Component per mostrar una categoria
 function CategoryButton({ categoryKey, category, colorConfig, onClick }) {
   return (
-    <button
+    <Button
       onClick={() => onClick(categoryKey)}
+      variant="outline"
       className={`w-full p-4 border border-gray-200 rounded-lg ${colorConfig.hover} transition-colors text-left`}
     >
       <div className="flex items-center gap-4">
@@ -29,27 +31,29 @@ function CategoryButton({ categoryKey, category, colorConfig, onClick }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
       </div>
-    </button>
+    </Button>
   );
 }
 
 // Component per mostrar un item seleccionable
 function ItemButton({ text, onClick }) {
   return (
-    <button
+    <Button
       onClick={onClick}
+      variant="outline"
       className="w-full p-4 border border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition-colors text-left"
     >
       <p className="text-gray-700">{text}</p>
-    </button>
+    </Button>
   );
 }
 
 // Component botó per tornar enrere
 function BackButton({ onClick, children }) {
   return (
-    <button
+    <Button
       onClick={onClick}
+      variant="ghost"
       className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-medium mb-4"
     >
       <svg
@@ -67,7 +71,7 @@ function BackButton({ onClick, children }) {
         />
       </svg>
       {children}
-    </button>
+    </Button>
   );
 }
 

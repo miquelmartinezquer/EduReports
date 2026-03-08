@@ -39,9 +39,10 @@ export const fetchWithAuth = async(url, options = {}) => {
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Error del backend:', errorData);
+        const backendMessage = errorData.mensaje || errorData.message || errorData.error;
         const errorMessage = errorData.details ?
-            `${errorData.error}: ${errorData.details}` :
-            errorData.error || `Error ${response.status}`;
+            `${backendMessage || 'Error'}: ${errorData.details}` :
+            backendMessage || `Error ${response.status}`;
         throw new Error(errorMessage);
     }
 

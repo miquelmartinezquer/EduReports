@@ -1,8 +1,12 @@
+import { Button } from "@/components/ui/button";
+
 function RemoveButton({ handleRemove, params, icon }) {
   return (
-    <button
+    <Button
       onClick={() => handleRemove(...params)}
-      className="p-1 text-red-400 hover:text-red-600"
+      variant="ghost"
+      size="icon-xs"
+      className="text-red-400 hover:text-red-600"
       title="Eliminar item"
     >
       {icon === "cross" ? (
@@ -36,7 +40,7 @@ function RemoveButton({ handleRemove, params, icon }) {
           />
         </svg>
       )}
-    </button>
+    </Button>
   );
 }
 

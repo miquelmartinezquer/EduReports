@@ -6,8 +6,8 @@ USE edureports;
 
 INSERT INTO users (id, name, email, password_hash, created_at)
 VALUES
-  (1, 'Maria Professora', 'maria@escola.cat', '$2b$10$Ze68VCe1f3NNyNTsstRbreosEILRwj3DDZUJnBvndfHhkLJZ1dEyu', '2024-01-01 00:00:00'),
-  (2, 'Joan Director', 'joan@escola.cat', '$2b$10$Ze68VCe1f3NNyNTsstRbreosEILRwj3DDZUJnBvndfHhkLJZ1dEyu', '2024-01-01 00:00:00'),
+  (1, 'Aurora', 'aurora@escola.cat', '$2b$10$1rgcFV/WXA6AgQVnX7Tc5OgxX2HxHvhBnKyOkPbq5n2TPQLLYNXJa', '2024-01-01 00:00:00'),
+  (2, 'Sol', 'sol@escola.cat', '$2b$10$1rgcFV/WXA6AgQVnX7Tc5OgxX2HxHvhBnKyOkPbq5n2TPQLLYNXJa', '2024-01-01 00:00:00'),
   (3, 'Miquel', 'miquel@escola.cat', '$2b$10$S7XpseZOzNrwSdiqq6qnJulbmlQQd1Um0r4Kmg1iG7JX89MB4NbSW', '2024-01-01 00:00:00')
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),

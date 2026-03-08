@@ -184,6 +184,45 @@ router.post('/accept/:invitationId', async(req, res) => {
     }
 });
 
+router.post('/decline/:invitationId', async(req, res) => {
+    const invitationId = parseInt(req.params.invitationId);
+
+    try {
+        const invitationRows = await query(
+            'SELECT id, user_id AS userId, course_id AS courseId, status, invited_at AS invitedAt FROM course_invitations WHERE id = ? LIMIT 1',
+            [invitationId],
+        );
+        const invitation = invitationRows[0];
+
+        if (!invitation) {
+            return res.status(404).json({ mensaje: 'Invitación no encontrada' });
+        }
+
+        if (invitation.userId !== req.session.userId) {
+            return res.status(403).json({ mensaje: 'No tens permís per declinar aquesta invitació' });
+        }
+
+        if (invitation.status !== 'pending') {
+            return res.status(400).json({ mensaje: 'Aquesta invitació ja no està pendent' });
+        }
+
+        await query(
+            "UPDATE course_invitations SET status = 'rejected' WHERE id = ?",
+            [invitationId],
+        );
+
+        const rejectedRows = await query(
+            'SELECT id, user_id AS userId, course_id AS courseId, status, invited_at AS invitedAt FROM course_invitations WHERE id = ? LIMIT 1',
+            [invitationId],
+        );
+
+        res.json({ message: 'Invitación declinada', invitation: rejectedRows[0] });
+    } catch (error) {
+        console.error('SQL invitations POST /decline/:invitationId error:', error.message);
+        res.status(500).json({ error: 'SQL ERROR' });
+    }
+});
+
 router.delete('/:invitationId', async(req, res) => {
     const invitationId = parseInt(req.params.invitationId);
 

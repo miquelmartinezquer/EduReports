@@ -9,6 +9,7 @@ import AddSectionButton from "./components/AddSectionButton";
 import FinalizeModal from "./components/FinalizeModal";
 import fetchWithAuth from "./utils/fetchWithAuth";
 import NavBar from "./components/NavBar";
+import { Button } from "@/components/ui/button";
 
 function CreateReport() {
   const navigate = useNavigate();
@@ -529,8 +530,9 @@ function CreateReport() {
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <button
+            <Button
               onClick={() => navigate(courseId ? `/cursos/${courseId}` : "/")}
+              variant="ghost"
               className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
             >
               <svg
@@ -547,7 +549,7 @@ function CreateReport() {
                 />
               </svg>
               Tornar als Cursos
-            </button>
+            </Button>
           </div>
           <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -673,9 +675,11 @@ function CreateReport() {
                         Primer has d'afegir un títol per organitzar els
                         continguts de l'informe
                       </p>
-                      <button
+                      <Button
                         onClick={addHeader}
-                        className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold transition-colors shadow-sm"
+                        variant="brand"
+                        size="lg"
+                        className="flex items-center gap-2"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -692,7 +696,7 @@ function CreateReport() {
                           />
                         </svg>
                         Afegir primer títol
-                      </button>
+                      </Button>
                     </div>
                   ) : (
                     elements.map((element) => (
@@ -779,18 +783,20 @@ function CreateReport() {
                           {saveMessage}
                         </span>
                       )}
-                      <button
+                      <Button
                         type="button"
                         onClick={generateReport}
+                        variant="outline"
                         className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded border border-gray-300 font-medium transition-colors"
                         title="Debug: Veure JSON"
                       >
                         JSON
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
                         onClick={saveProgress}
-                        className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold transition-colors shadow-sm"
+                        variant="brand"
+                        className="flex items-center gap-2"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -807,14 +813,15 @@ function CreateReport() {
                           />
                         </svg>
                         Guardar Progrés
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
                         onClick={openFinalizeModal}
-                        className="px-8 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold transition-colors shadow-sm"
+                        variant="success"
+                        className="px-8"
                       >
                         Finalitzar Informe
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -836,8 +843,10 @@ function CreateReport() {
                   Escull d'entre les categories o escriu el teu propi contingut
                 </p>
               </div>
-              <button
+              <Button
                 onClick={closeItemModal}
+                variant="ghost"
+                size="icon-sm"
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <svg
@@ -854,7 +863,7 @@ function CreateReport() {
                     d="M6 18L18 6M6 6l12 12"
                   />
                 </svg>
-              </button>
+              </Button>
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[60vh]">
@@ -881,8 +890,10 @@ function CreateReport() {
                   utilitzar
                 </p>
               </div>
-              <button
+              <Button
                 onClick={closeJsonModal}
+                variant="ghost"
+                size="icon-sm"
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <svg
@@ -899,7 +910,7 @@ function CreateReport() {
                     d="M6 18L18 6M6 6l12 12"
                   />
                 </svg>
-              </button>
+              </Button>
             </div>
 
             <div className="p-6 overflow-y-auto flex-1">
@@ -911,15 +922,17 @@ function CreateReport() {
             </div>
 
             <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
-              <button
+              <Button
                 onClick={closeJsonModal}
+                variant="outline"
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
               >
                 Tancar
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={copyJson}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors"
+                variant="brand"
+                className="flex items-center gap-2"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -936,7 +949,7 @@ function CreateReport() {
                   />
                 </svg>
                 Copiar JSON
-              </button>
+              </Button>
             </div>
           </div>
         </div>

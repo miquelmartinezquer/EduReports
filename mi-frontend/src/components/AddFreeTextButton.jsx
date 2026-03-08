@@ -1,10 +1,13 @@
 import React from "react";
+import { Button } from "@/components/ui/button";
 
 function AddFreeTextButton({ onClick }) {
   return (
-    <button
+    <Button
       onClick={onClick}
-      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 hover:border-orange-300 rounded-lg transition-colors text-orange-700 text-sm font-medium"
+      variant="warning"
+      size="sm"
+      className="flex-1"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -21,7 +24,7 @@ function AddFreeTextButton({ onClick }) {
         />
       </svg>
       Escriptura lliure
-    </button>
+    </Button>
   );
 }
 

@@ -1,6 +1,7 @@
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import NavBar from "./components/NavBar";
+import { Button } from "@/components/ui/button";
 
 function GeneratedReport() {
   const location = useLocation();
@@ -45,12 +46,13 @@ function GeneratedReport() {
               </h1>
               <p className="text-gray-500 mt-1">El teu informe està llest</p>
             </div>
-            <button
+            <Button
               onClick={handleBack}
+              variant="outline"
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
             >
               ← Tornar a l'inici
-            </button>
+            </Button>
           </div>
 
           {reportData ? (
@@ -127,12 +129,12 @@ function GeneratedReport() {
                       Ja pots accedir a l'informe des del perfil de l'alumne
                     </p>
                   </div>
-                  <button
+                  <Button
                     onClick={handleViewSavedReport}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium transition-colors"
+                    variant="success"
                   >
                     Veure Informe
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -197,12 +199,12 @@ function GeneratedReport() {
               </div>
 
               <div className="flex gap-3">
-                <button className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors">
+                <Button variant="brand" className="flex-1 px-4 py-3">
                   Descarregar PDF
-                </button>
-                <button className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium transition-colors">
+                </Button>
+                <Button variant="success" className="flex-1 px-4 py-3">
                   Enviar per correu
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
@@ -229,12 +231,13 @@ function GeneratedReport() {
               <p className="text-gray-500 mb-4">
                 Torna a la pàgina principal per crear un nou informe
               </p>
-              <button
+              <Button
                 onClick={handleBack}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors"
+                variant="brand"
+                className="px-6"
               >
                 Crear nou informe
-              </button>
+              </Button>
             </div>
           )}
         </div>

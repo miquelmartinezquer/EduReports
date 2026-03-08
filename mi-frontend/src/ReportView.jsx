@@ -2,6 +2,19 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import fetchWithAuth from "./utils/fetchWithAuth";
 import NavBar from "./components/NavBar";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "@/components/ui/sonner";
 
 function ReportView() {
   const { reportId } = useParams();
@@ -36,9 +49,6 @@ function ReportView() {
   };
 
   const deleteReport = async () => {
-    if (!window.confirm("Estàs segur que vols eliminar aquest informe?"))
-      return;
-
     try {
       await fetchWithAuth(
         `/courses/${courseId}/students/${studentId}/reports/${reportId}`,
@@ -47,11 +57,11 @@ function ReportView() {
         },
       );
 
-      alert("Informe eliminat correctament");
+      toast.success("Informe eliminat correctament");
       navigate(`/cursos/${courseId}`);
     } catch (error) {
       console.error("Error eliminant informe:", error);
-      alert("Error eliminant l'informe");
+      toast.error("Error eliminant l'informe");
     }
   };
 
@@ -106,12 +116,12 @@ function ReportView() {
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">Error</h3>
             <p className="text-gray-500 text-sm mb-4">{error}</p>
-            <button
+            <Button
               onClick={() => navigate(`/cursos/${courseId}`)}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              variant="brand"
             >
               Tornar al Curs
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -133,16 +143,18 @@ function ReportView() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
-          <button
+          <Button
             onClick={() => navigate(`/cursos/${courseId}`)}
+            variant="ghost"
             className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
           >
             ← Tornar al Curs
-          </button>
+          </Button>
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={() => window.print()}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+              variant="neutral"
+              className="flex items-center gap-2"
             >
               <svg
                 className="w-4 h-4"
@@ -158,26 +170,44 @@ function ReportView() {
                 />
               </svg>
               Imprimir
-            </button>
-            <button
-              onClick={deleteReport}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-              Eliminar
-            </button>
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="danger" className="flex items-center gap-2">
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                  Eliminar
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Eliminar informe?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Aquesta acció eliminara l'informe de manera permanent.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel·lar</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    onClick={deleteReport}
+                  >
+                    Si, eliminar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
 
