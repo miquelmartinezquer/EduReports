@@ -30,12 +30,29 @@ function MyCourses() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newCourseName, setNewCourseName] = useState("");
   const [newCourseLevel, setNewCourseLevel] = useState("I3");
+  const [deleteCourseId, setDeleteCourseId] = useState(null);
+  const [deleteCourseNameInput, setDeleteCourseNameInput] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Formatear data ISO a format europeu
-  const formatDate = (isoDate) => {
-    const date = new Date(isoDate);
-    return date.toLocaleDateString("ca-ES");
+  const openCourse = (courseId) => {
+    navigate(`/cursos/${courseId}`);
+  };
+
+  const handleCourseCardKeyDown = (e, courseId) => {
+    const target = e.target;
+    const isInteractiveTarget =
+      target instanceof HTMLElement &&
+      (target.closest("input, textarea, select, button, [role='dialog']") ||
+        target.isContentEditable);
+
+    if (isInteractiveTarget) {
+      return;
+    }
+
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openCourse(courseId);
+    }
   };
 
   useEffect(() => {
@@ -45,10 +62,16 @@ function MyCourses() {
       loadCourses();
     };
 
-    window.addEventListener("shared-courses-updated", handleSharedCoursesUpdated);
+    window.addEventListener(
+      "shared-courses-updated",
+      handleSharedCoursesUpdated,
+    );
 
     return () => {
-      window.removeEventListener("shared-courses-updated", handleSharedCoursesUpdated);
+      window.removeEventListener(
+        "shared-courses-updated",
+        handleSharedCoursesUpdated,
+      );
     };
   }, []);
 
@@ -89,14 +112,20 @@ function MyCourses() {
       if (Array.isArray(myCoursesData)) {
         setCourses(myCoursesData);
       } else {
-        console.error("Les dades rebudes de cursos propis no són un array:", myCoursesData);
+        console.error(
+          "Les dades rebudes de cursos propis no són un array:",
+          myCoursesData,
+        );
         setCourses([]);
       }
 
       if (Array.isArray(sharedCoursesData)) {
         setSharedCourses(sharedCoursesData);
       } else {
-        console.error("Les dades rebudes de cursos compartits no són un array:", sharedCoursesData);
+        console.error(
+          "Les dades rebudes de cursos compartits no són un array:",
+          sharedCoursesData,
+        );
         setSharedCourses([]);
       }
     } catch (error) {
@@ -154,16 +183,38 @@ function MyCourses() {
         credentials: "include",
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
-      if (data.success) {
-        setCourses(courses.filter((course) => course.id !== id));
-        toast.success("Curs eliminat correctament");
+      if (!response.ok || !data.success) {
+        toast.error(data.error || "No s'ha pogut eliminar el curs");
+        return false;
       }
+
+      setCourses(courses.filter((course) => course.id !== id));
+      toast.success("Curs eliminat correctament");
+      return true;
     } catch (error) {
       console.error("Error eliminant curs:", error);
       toast.error("No s'ha pogut eliminar el curs");
+      return false;
     }
+  };
+
+  const openDeleteCourseDialog = (course) => {
+    setDeleteCourseId(course.id);
+    setDeleteCourseNameInput("");
+  };
+
+  const closeDeleteCourseDialog = () => {
+    setDeleteCourseId(null);
+    setDeleteCourseNameInput("");
+  };
+
+  const isDeleteCourseNameValid = (courseName) => {
+    return (
+      deleteCourseNameInput.trim().toLowerCase() ===
+      (courseName || "").trim().toLowerCase()
+    );
   };
 
   return (
@@ -208,7 +259,7 @@ function MyCourses() {
           </div>
 
           {/* Llista de cursos */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {loading ? (
               <div className="col-span-full bg-white rounded-lg shadow p-12 text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
@@ -254,15 +305,19 @@ function MyCourses() {
               </div>
             ) : (
               courses.map((course) => (
-                <div
+                <article
                   key={course.id}
-                  className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => navigate(`/cursos/${course.id}`)}
+                  className="group bg-white rounded-xl border-2 border-gray-200 shadow-sm p-4 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:border-emerald-300 hover:shadow-lg focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-2"
+                  onClick={() => openCourse(course.id)}
+                  onKeyDown={(e) => handleCourseCardKeyDown(e, course.id)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Obrir curs ${course.name}`}
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center border border-emerald-200">
                       <svg
-                        className="w-6 h-6 text-indigo-600"
+                        className="w-6 h-6 text-emerald-700"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -275,10 +330,25 @@ function MyCourses() {
                         />
                       </svg>
                     </div>
-                    <AlertDialog>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Curs propi
+                    </span>
+                    <AlertDialog
+                      open={deleteCourseId === course.id}
+                      onOpenChange={(open) => {
+                        if (open) {
+                          openDeleteCourseDialog(course);
+                        } else {
+                          closeDeleteCourseDialog();
+                        }
+                      }}
+                    >
                       <AlertDialogTrigger asChild>
                         <Button
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteCourseDialog(course);
+                          }}
                           variant="ghost"
                           size="icon-sm"
                           className="text-gray-400 hover:text-red-600 transition-colors"
@@ -304,14 +374,41 @@ function MyCourses() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Eliminar curs?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Aquesta accio eliminara el curs <strong>{course.name}</strong> i no es pot desfer.
+                            Aquesta accio eliminara el curs{" "}
+                            <strong>{course.name}</strong> i no es pot desfer.
+                            <br />
+                            <br />
+                            Escriu el nom del curs per confirmar l'eliminació.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-700">
+                            Nom del curs
+                          </label>
+                          <input
+                            type="text"
+                            value={deleteCourseNameInput}
+                            onChange={(e) =>
+                              setDeleteCourseNameInput(e.target.value)
+                            }
+                            placeholder={course.name}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            autoFocus
+                          />
+                        </div>
+
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel·lar</AlertDialogCancel>
                           <AlertDialogAction
                             variant="destructive"
-                            onClick={() => deleteCourse(course.id)}
+                            disabled={!isDeleteCourseNameValid(course.name)}
+                            onClick={async () => {
+                              const deleted = await deleteCourse(course.id);
+                              if (deleted) {
+                                closeDeleteCourseDialog();
+                              }
+                            }}
                           >
                             Si, eliminar
                           </AlertDialogAction>
@@ -319,21 +416,15 @@ function MyCourses() {
                       </AlertDialogContent>
                     </AlertDialog>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-0.5">
                     {course.name}
                   </h3>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="inline-block px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded">
-                      {course.level || "Sense nivell"}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-500 mb-4">
-                    Creat el {formatDate(course.createdAt)}
-                  </p>
-                  <div className="flex items-center justify-between text-sm text-gray-600">
-                    <span className="flex items-center gap-1">
+                  <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Fes clic per entrar</span>
+                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 group-hover:text-emerald-800">
+                      Obrir curs
                       <svg
-                        className="w-4 h-4"
+                        className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -345,16 +436,14 @@ function MyCourses() {
                           d="M9 5l7 7-7 7"
                         />
                       </svg>
-                      Veure detalls
                     </span>
                   </div>
-                </div>
+                </article>
               ))
             )}
           </div>
 
-          {/* Cursos compartits amb mi */}
-          <div className="mt-10">
+          <div className="mt-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
               Cursos compartits amb mi
             </h2>
@@ -362,10 +451,12 @@ function MyCourses() {
               Cursos on tens accés com a col·laborador/a
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {loading ? (
                 <div className="col-span-full bg-white rounded-lg shadow p-12 text-center">
-                  <p className="text-gray-500 text-sm">Carregant cursos compartits...</p>
+                  <p className="text-gray-500 text-sm">
+                    Carregant cursos compartits...
+                  </p>
                 </div>
               ) : sharedCourses.length === 0 ? (
                 <div className="col-span-full bg-white rounded-lg shadow p-12 text-center">
@@ -378,15 +469,19 @@ function MyCourses() {
                 </div>
               ) : (
                 sharedCourses.map((course) => (
-                  <div
+                  <article
                     key={course.id}
-                    className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => navigate(`/cursos/${course.id}`)}
+                    className="group bg-white rounded-xl border-2 border-gray-200 shadow-sm p-4 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2"
+                    onClick={() => openCourse(course.id)}
+                    onKeyDown={(e) => handleCourseCardKeyDown(e, course.id)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Obrir curs compartit ${course.name}`}
                   >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center border border-blue-200">
                         <svg
-                          className="w-6 h-6 text-indigo-600"
+                          className="w-6 h-6 text-blue-700"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -399,26 +494,20 @@ function MyCourses() {
                           />
                         </svg>
                       </div>
-                      <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                         Compartit
                       </span>
                     </div>
 
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-0.5">
                       {course.name}
                     </h3>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="inline-block px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded">
-                        {course.level || "Sense nivell"}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-500 mb-4">
-                      Creat el {formatDate(course.createdAt)}
-                    </p>
-                    <div className="flex items-center justify-between text-sm text-gray-600">
-                      <span className="flex items-center gap-1">
+                    <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Fes clic per entrar</span>
+                      <span className="inline-flex items-center gap-1 font-semibold text-blue-700 group-hover:text-blue-800">
+                        Obrir curs
                         <svg
-                          className="w-4 h-4"
+                          className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -430,10 +519,9 @@ function MyCourses() {
                             d="M9 5l7 7-7 7"
                           />
                         </svg>
-                        Veure detalls
                       </span>
                     </div>
-                  </div>
+                  </article>
                 ))
               )}
             </div>

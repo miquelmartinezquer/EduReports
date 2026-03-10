@@ -10,6 +10,7 @@ function GeneratingReport() {
   const location = useLocation();
   const navigate = useNavigate();
   const reportData = location.state?.reportData || null;
+  const studentDisplayName = location.state?.studentName || "";
   const studentId = location.state?.studentId;
   const courseId = location.state?.courseId;
   const [progress, setProgress] = useState(0);
@@ -70,7 +71,9 @@ function GeneratingReport() {
 
         clearInterval(progressInterval);
         setProgress(100);
-        navigate(`/informe/${savedReportId}?studentId=${studentId}&courseId=${courseId}`);
+        navigate(
+          `/informe/${savedReportId}?studentId=${studentId}&courseId=${courseId}`,
+        );
       })
       .catch((err) => {
         clearInterval(progressInterval);
@@ -147,11 +150,15 @@ function GeneratingReport() {
               <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
-                    {reportData.student?.name?.charAt(0)?.toUpperCase() || "?"}
+                    {(studentDisplayName || reportData.student?.name)
+                      ?.charAt(0)
+                      ?.toUpperCase() || "?"}
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900">
-                      {reportData.student?.name || "Alumne"}
+                      {studentDisplayName ||
+                        reportData.student?.name ||
+                        "Alumne"}
                     </p>
                     <p className="text-sm text-gray-500">
                       {reportData.student?.course} -{" "}

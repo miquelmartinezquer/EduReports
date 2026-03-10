@@ -25,6 +25,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/components/ui/sonner";
+import CategoryFormDialog from "./components/CategoryFormDialog";
+import ItemFormDialog from "./components/ItemFormDialog";
+import ImportItemsDialog from "./components/ImportItemsDialog";
+import ExportItemsDialog from "./components/ExportItemsDialog";
+import ExpandableActionButton from "./components/ExpandableActionButton";
 
 function CourseDetail() {
   const { courseId } = useParams();
@@ -58,19 +63,33 @@ function CourseDetail() {
   const [showAddClassModal, setShowAddClassModal] = useState(false);
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState(null);
+  const [deleteClassId, setDeleteClassId] = useState(null);
+  const [deleteClassNameInput, setDeleteClassNameInput] = useState("");
 
   // Form states
   const [newCollaborator, setNewCollaborator] = useState({
     email: "",
   });
   const [newClass, setNewClass] = useState({ name: "" });
-  const [newStudent, setNewStudent] = useState({ name: "", age: "" });
+  const [newStudent, setNewStudent] = useState({
+    name: "",
+    lastName: "",
+    gender: "no_indicat",
+    age: "",
+  });
 
   // Category/Items states
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryColor, setNewCategoryColor] = useState("purple");
-  const [addingItemTo, setAddingItemTo] = useState(null);
+  const [editingCategoryKey, setEditingCategoryKey] = useState(null);
+  const [showItemDialog, setShowItemDialog] = useState(false);
+  const [showImportItemsDialog, setShowImportItemsDialog] = useState(false);
+  const [isImportingItems, setIsImportingItems] = useState(false);
+  const [showExportItemsDialog, setShowExportItemsDialog] = useState(false);
+  const [isExportingItems, setIsExportingItems] = useState(false);
+  const [itemCategoryKey, setItemCategoryKey] = useState(null);
+  const [editingItemIndex, setEditingItemIndex] = useState(null);
   const [newItemText, setNewItemText] = useState("");
   const [confirmDialog, setConfirmDialog] = useState({
     open: false,
@@ -143,7 +162,9 @@ function CourseDetail() {
     if (message.includes("el usuario ya es colaborador del curso")) {
       return "Aquest usuari ja esta al grup";
     }
-    if (message.includes("ya existe una invitación pendiente para este usuario")) {
+    if (
+      message.includes("ya existe una invitación pendiente para este usuario")
+    ) {
       return "Ja existeix una invitació pendent per aquest usuari";
     }
     if (message.includes("curso no encontrado")) {
@@ -227,11 +248,13 @@ function CourseDetail() {
         <>
           {isCurrentUser ? (
             <>
-              Sortiras del curs <strong>{course?.name}</strong> i perdras l'accés.
+              Sortiras del curs <strong>{course?.name}</strong> i perdras
+              l'accés.
             </>
           ) : (
             <>
-              S'eliminara el col·laborador <strong>{collab.name}</strong> del curs.
+              S'eliminara el col·laborador <strong>{collab.name}</strong> del
+              curs.
             </>
           )}
         </>
@@ -244,7 +267,9 @@ function CourseDetail() {
 
   const loadPendingInvitations = async () => {
     try {
-      const data = await fetchWithAuth(`/invitations/course/${courseId}/pending`);
+      const data = await fetchWithAuth(
+        `/invitations/course/${courseId}/pending`,
+      );
       setPendingInvitations(
         Array.isArray(data?.invitations) ? data.invitations : [],
       );
@@ -331,6 +356,37 @@ function CourseDetail() {
     }
   };
 
+  const openDeleteClassDialog = (classItem) => {
+    setDeleteClassId(classItem.id);
+    setDeleteClassNameInput("");
+  };
+
+  const closeDeleteClassDialog = () => {
+    setDeleteClassId(null);
+    setDeleteClassNameInput("");
+  };
+
+  const isDeleteClassNameValid = (className) => {
+    return (
+      deleteClassNameInput.trim().toLowerCase() ===
+      (className || "").trim().toLowerCase()
+    );
+  };
+
+  const genderLabel = (value) => {
+    const map = {
+      nen: "Nen",
+      nena: "Nena",
+      altre: "Altre",
+      no_indicat: "No indicat",
+    };
+    return map[value] || "No indicat";
+  };
+
+  const studentDisplayName = (student) => {
+    return [student?.name, student?.lastName].filter(Boolean).join(" ").trim();
+  };
+
   // Alumnes
   const addStudent = async () => {
     if (newStudent.name.trim() && selectedClassId) {
@@ -342,6 +398,8 @@ function CourseDetail() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               name: newStudent.name,
+              lastName: newStudent.lastName || null,
+              gender: newStudent.gender || null,
               age: newStudent.age ? parseInt(newStudent.age) : null,
             }),
           },
@@ -355,7 +413,12 @@ function CourseDetail() {
                 : c,
             ),
           }));
-          setNewStudent({ name: "", age: "" });
+          setNewStudent({
+            name: "",
+            lastName: "",
+            gender: "no_indicat",
+            age: "",
+          });
           setShowAddStudentModal(false);
           setSelectedClassId(null);
           toast.success("Alumne afegit correctament");
@@ -395,7 +458,9 @@ function CourseDetail() {
   // Categories i Items
   const loadAvailableColors = async () => {
     try {
-      const data = await fetchWithAuth(`/courses/${courseId}/categories/colors`);
+      const data = await fetchWithAuth(
+        `/courses/${courseId}/categories/colors`,
+      );
       if (Array.isArray(data) && data.length > 0) {
         setAvailableColors(
           data.map((color) => ({
@@ -496,6 +561,53 @@ function CourseDetail() {
     }
   };
 
+  const updateCategory = async () => {
+    if (!newCategoryName.trim() || !editingCategoryKey) {
+      toast.error("Introdueix el nom de la categoria");
+      return;
+    }
+
+    try {
+      const data = await fetchWithAuth(
+        `/courses/${courseId}/categories/${editingCategoryKey}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: newCategoryName,
+            color: newCategoryColor,
+          }),
+        },
+      );
+
+      if (data.success) {
+        await loadCategories();
+        setShowNewCategory(false);
+        setEditingCategoryKey(null);
+        setNewCategoryName("");
+        setNewCategoryColor("purple");
+        toast.success("Categoria actualitzada correctament");
+      }
+    } catch (error) {
+      console.error("Error actualitzant categoria:", error);
+      toast.error("No s'ha pogut actualitzar la categoria");
+    }
+  };
+
+  const openCreateCategoryModal = () => {
+    setEditingCategoryKey(null);
+    setNewCategoryName("");
+    setNewCategoryColor("purple");
+    setShowNewCategory(true);
+  };
+
+  const openEditCategoryModal = (key, category) => {
+    setEditingCategoryKey(key);
+    setNewCategoryName(category.name || "");
+    setNewCategoryColor(category.color || "purple");
+    setShowNewCategory(true);
+  };
+
   const deleteCategory = async (key) => {
     try {
       const data = await fetchWithAuth(
@@ -544,7 +656,9 @@ function CourseDetail() {
       );
       if (data.success) {
         await loadCategories();
-        setAddingItemTo(null);
+        setShowItemDialog(false);
+        setItemCategoryKey(null);
+        setEditingItemIndex(null);
         setNewItemText("");
         toast.success("Item afegit correctament");
       }
@@ -552,6 +666,59 @@ function CourseDetail() {
       console.error("Error afegint item:", error);
       toast.error("No s'ha pogut afegir l'item");
     }
+  };
+
+  const updateItem = async (categoryKey, itemIndex) => {
+    if (!newItemText.trim()) {
+      toast.error("Introdueix el text de l'item");
+      return;
+    }
+
+    const category = categories[categoryKey];
+    if (!category || !Array.isArray(category.items)) {
+      toast.error("No s'ha trobat la categoria");
+      return;
+    }
+
+    const updatedItems = [...category.items];
+    updatedItems[itemIndex] = newItemText.trim();
+
+    try {
+      const data = await fetchWithAuth(
+        `/courses/${courseId}/categories/${categoryKey}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: updatedItems }),
+        },
+      );
+
+      if (data.success) {
+        await loadCategories();
+        setShowItemDialog(false);
+        setItemCategoryKey(null);
+        setEditingItemIndex(null);
+        setNewItemText("");
+        toast.success("Item actualitzat correctament");
+      }
+    } catch (error) {
+      console.error("Error actualitzant item:", error);
+      toast.error("No s'ha pogut actualitzar l'item");
+    }
+  };
+
+  const openCreateItemModal = (categoryKey) => {
+    setItemCategoryKey(categoryKey);
+    setEditingItemIndex(null);
+    setNewItemText("");
+    setShowItemDialog(true);
+  };
+
+  const openEditItemModal = (categoryKey, itemIndex, itemText) => {
+    setItemCategoryKey(categoryKey);
+    setEditingItemIndex(itemIndex);
+    setNewItemText(itemText || "");
+    setShowItemDialog(true);
   };
 
   const removeItem = async (categoryKey, itemIndex) => {
@@ -618,6 +785,91 @@ function CourseDetail() {
       </div>
     );
   }
+
+  const totalItemsCount = Object.values(categories).reduce(
+    (total, category) => {
+      return (
+        total + (Array.isArray(category?.items) ? category.items.length : 0)
+      );
+    },
+    0,
+  );
+
+  const exportItemsCsv = async () => {
+    try {
+      setIsExportingItems(true);
+
+      const response = await fetch(
+        `http://localhost:3000/courses/${courseId}/categories/export/csv`,
+        {
+          method: "GET",
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "No s'ha pogut exportar els items");
+      }
+
+      const contentDisposition = response.headers.get("content-disposition");
+      const fileNameMatch = contentDisposition?.match(/filename="?([^\"]+)"?/i);
+      const fallbackCourseName = (course?.name || "curs")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-_]/g, "");
+      const fileName =
+        fileNameMatch?.[1] || `${fallbackCourseName || "curs"}-items.csv`;
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      setShowExportItemsDialog(false);
+      toast.success("Items exportats correctament");
+    } catch (error) {
+      console.error("Error exportant items:", error);
+      toast.error(error.message || "No s'ha pogut exportar els items");
+    } finally {
+      setIsExportingItems(false);
+    }
+  };
+
+  const importItemsData = async (importedCategories) => {
+    try {
+      setIsImportingItems(true);
+
+      const data = await fetchWithAuth(
+        `/courses/${courseId}/categories/import`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ categories: importedCategories }),
+        },
+      );
+
+      if (data.success) {
+        await loadCategories();
+        setShowImportItemsDialog(false);
+        toast.success(
+          `Importació completada: ${data.imported.categories} categories i ${data.imported.items} items`,
+        );
+      }
+    } catch (error) {
+      console.error("Error important items:", error);
+      toast.error(error.message || "No s'ha pogut importar els items");
+      throw error;
+    } finally {
+      setIsImportingItems(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -703,7 +955,7 @@ function CourseDetail() {
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
-              Items ({Object.keys(categories).length || 0})
+              Items ({totalItemsCount})
             </Button>
           </div>
         </div>
@@ -777,9 +1029,23 @@ function CourseDetail() {
                           </p>
                         )}
                       </div>
-                      <AlertDialog>
+                      <AlertDialog
+                        open={deleteClassId === classItem.id}
+                        onOpenChange={(open) => {
+                          if (open) {
+                            openDeleteClassDialog(classItem);
+                          } else {
+                            closeDeleteClassDialog();
+                          }
+                        }}
+                      >
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon-sm" className="text-gray-400 hover:text-red-600 transition-colors">
+                          <Button
+                            onClick={() => openDeleteClassDialog(classItem)}
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-gray-400 hover:text-red-600 transition-colors"
+                          >
                             <svg
                               className="w-5 h-5"
                               fill="none"
@@ -797,16 +1063,45 @@ function CourseDetail() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Eliminar classe?</AlertDialogTitle>
+                            <AlertDialogTitle>
+                              Eliminar classe?
+                            </AlertDialogTitle>
                             <AlertDialogDescription>
-                              S'eliminara la classe <strong>{classItem.name}</strong> amb tots els seus alumnes.
+                              S'eliminara la classe{" "}
+                              <strong>{classItem.name}</strong> amb tots els
+                              seus alumnes.
+                              <br />
+                              <br />
+                              Escriu el nom de la classe per confirmar
+                              l'eliminació.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
+
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">
+                              Nom de la classe
+                            </label>
+                            <input
+                              type="text"
+                              value={deleteClassNameInput}
+                              onChange={(e) =>
+                                setDeleteClassNameInput(e.target.value)
+                              }
+                              placeholder={classItem.name}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                              autoFocus
+                            />
+                          </div>
+
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel·lar</AlertDialogCancel>
                             <AlertDialogAction
                               variant="destructive"
-                              onClick={() => deleteClass(classItem.id)}
+                              disabled={!isDeleteClassNameValid(classItem.name)}
+                              onClick={async () => {
+                                await deleteClass(classItem.id);
+                                closeDeleteClassDialog();
+                              }}
                             >
                               Si, eliminar
                             </AlertDialogAction>
@@ -849,17 +1144,29 @@ function CourseDetail() {
                                 <div className="flex items-start justify-between mb-3">
                                   <div className="flex-1">
                                     <p className="font-medium text-gray-900">
-                                      {student.name}
+                                      {studentDisplayName(student) ||
+                                        student.name}
                                     </p>
-                                    {student.age && (
-                                      <p className="text-xs text-gray-600">
-                                        {student.age} anys
-                                      </p>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                      {student.gender && (
+                                        <p className="text-xs text-gray-600">
+                                          {genderLabel(student.gender)}
+                                        </p>
+                                      )}
+                                      {student.age && (
+                                        <p className="text-xs text-gray-600">
+                                          {student.age} anys
+                                        </p>
+                                      )}
+                                    </div>
                                   </div>
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                      <Button variant="ghost" size="icon-sm" className="text-gray-400 hover:text-red-600 transition-colors">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="text-gray-400 hover:text-red-600 transition-colors"
+                                      >
                                         <svg
                                           className="w-4 h-4"
                                           fill="none"
@@ -877,17 +1184,29 @@ function CourseDetail() {
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                       <AlertDialogHeader>
-                                        <AlertDialogTitle>Eliminar alumne?</AlertDialogTitle>
+                                        <AlertDialogTitle>
+                                          Eliminar alumne?
+                                        </AlertDialogTitle>
                                         <AlertDialogDescription>
-                                          S'eliminara l'alumne <strong>{student.name}</strong> d'aquesta classe.
+                                          S'eliminara l'alumne{" "}
+                                          <strong>
+                                            {studentDisplayName(student) ||
+                                              student.name}
+                                          </strong>{" "}
+                                          d'aquesta classe.
                                         </AlertDialogDescription>
                                       </AlertDialogHeader>
                                       <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel·lar</AlertDialogCancel>
+                                        <AlertDialogCancel>
+                                          Cancel·lar
+                                        </AlertDialogCancel>
                                         <AlertDialogAction
                                           variant="destructive"
                                           onClick={() =>
-                                            deleteStudent(classItem.id, student.id)
+                                            deleteStudent(
+                                              classItem.id,
+                                              student.id,
+                                            )
                                           }
                                         >
                                           Si, eliminar
@@ -933,7 +1252,7 @@ function CourseDetail() {
                                     <Button
                                       onClick={() =>
                                         navigate(
-                                          `/crear-informe?studentId=${student.id}&studentName=${encodeURIComponent(student.name)}&courseId=${courseId}&courseName=${encodeURIComponent(course.level || course.name)}`,
+                                          `/crear-informe?studentId=${student.id}&studentName=${encodeURIComponent(studentDisplayName(student) || student.name)}&studentGender=${encodeURIComponent(student.gender || "no_indicat")}&courseId=${courseId}&courseName=${encodeURIComponent(course.level || course.name)}`,
                                         )
                                       }
                                       variant="warning"
@@ -959,7 +1278,7 @@ function CourseDetail() {
                                     <Button
                                       onClick={() =>
                                         navigate(
-                                          `/crear-informe?studentId=${student.id}&studentName=${encodeURIComponent(student.name)}&courseId=${courseId}&courseName=${encodeURIComponent(course.level || course.name)}`,
+                                          `/crear-informe?studentId=${student.id}&studentName=${encodeURIComponent(studentDisplayName(student) || student.name)}&studentGender=${encodeURIComponent(student.gender || "no_indicat")}&courseId=${courseId}&courseName=${encodeURIComponent(course.level || course.name)}`,
                                         )
                                       }
                                       variant="brand"
@@ -1057,88 +1376,88 @@ function CourseDetail() {
                       key={collab.id}
                       className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow"
                     >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
-                        <svg
-                          className="w-6 h-6 text-emerald-600"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                          />
-                        </svg>
-                      </div>
-                      {!isOwner &&
-                        (isCurrentUser ? (
-                          <Button
-                            onClick={() => requestDeleteCollaborator(collab)}
-                            variant="outline"
-                            size="sm"
-                            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                          <svg
+                            className="w-6 h-6 text-emerald-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
                           >
-                            Sortir del curs
-                          </Button>
-                        ) : (
-                          <Button
-                            onClick={() => requestDeleteCollaborator(collab)}
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-gray-400 hover:text-red-600 transition-colors"
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                            />
+                          </svg>
+                        </div>
+                        {!isOwner &&
+                          (isCurrentUser ? (
+                            <Button
+                              onClick={() => requestDeleteCollaborator(collab)}
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                            >
+                              Sortir del curs
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={() => requestDeleteCollaborator(collab)}
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-gray-400 hover:text-red-600 transition-colors"
+                            >
+                              <svg
+                                className="w-5 h-5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M6 18L18 6M6 6l12 12"
+                                />
+                              </svg>
+                            </Button>
+                          ))}
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                        {collab.name}
+                      </h3>
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="text-sm text-indigo-600 font-medium">
+                          {collab.role}
+                        </p>
+                        {isOwner && (
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800"
+                            title="Propietari del curs"
                           >
                             <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                              className="w-3 h-3 mr-1"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M6 18L18 6M6 6l12 12"
-                              />
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                             </svg>
-                          </Button>
-                        ))}
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                      {collab.name}
-                    </h3>
-                    <div className="flex items-center gap-2 mb-2">
-                      <p className="text-sm text-indigo-600 font-medium">
-                        {collab.role}
-                      </p>
-                      {isOwner && (
-                        <span
-                          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800"
-                          title="Propietari del curs"
-                        >
-                          <svg
-                            className="w-3 h-3 mr-1"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
+                            Propietari
+                          </span>
+                        )}
+                        {isCurrentUser && (
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                            title="Aquest ets tu"
                           >
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                          Propietari
-                        </span>
-                      )}
-                      {isCurrentUser && (
-                        <span
-                          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
-                          title="Aquest ets tu"
-                        >
-                          Tu
-                        </span>
-                      )}
+                            Tu
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600">{collab.email}</p>
                     </div>
-                    <p className="text-sm text-gray-600">{collab.email}</p>
-                  </div>
                   );
                 })
               )}
@@ -1201,28 +1520,72 @@ function CourseDetail() {
 
         {activeTab === "items" && (
           <div>
-            <div className="mb-6">
-              <Button
-                onClick={() => setShowNewCategory(true)}
+            <div className="mb-6 flex items-center gap-3">
+              <ExpandableActionButton
+                onClick={openCreateCategoryModal}
+                label="Afegir Categoria"
                 variant="brand"
                 size="lg"
-                className="flex items-center gap-2"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-                Afegir Categoria
-              </Button>
+                icon={
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                }
+              />
+              <ExpandableActionButton
+                type="button"
+                onClick={() => setShowImportItemsDialog(true)}
+                label="Carregar Items"
+                variant="outline"
+                size="lg"
+                icon={
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 16V6m0 0l-4 4m4-4l4 4M4 18h16"
+                    />
+                  </svg>
+                }
+              />
+              <ExpandableActionButton
+                type="button"
+                onClick={() => setShowExportItemsDialog(true)}
+                label="Descarregar Items"
+                variant="outline"
+                size="lg"
+                icon={
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v10m0 0l-4-4m4 4l4-4M4 6h16"
+                    />
+                  </svg>
+                }
+              />
             </div>
 
             {/* Llista de categories */}
@@ -1289,26 +1652,51 @@ function CourseDetail() {
                             </p>
                           </div>
                         </div>
-                        <Button
-                          onClick={() => requestDeleteCategory(key, category.name)}
-                          variant="ghost"
-                          size="icon-sm"
-                          className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                        >
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                        <div className="flex items-center gap-1">
+                          <Button
+                            onClick={() => openEditCategoryModal(key, category)}
+                            variant="ghost"
+                            size="icon-sm"
+                            className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                            title="Editar categoria"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                        </Button>
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
+                            </svg>
+                          </Button>
+                          <Button
+                            onClick={() =>
+                              requestDeleteCategory(key, category.name)
+                            }
+                            variant="ghost"
+                            size="icon-sm"
+                            className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                          >
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
+                            </svg>
+                          </Button>
+                        </div>
                       </div>
 
                       <div className="p-4 space-y-2">
@@ -1320,82 +1708,77 @@ function CourseDetail() {
                             <span className="text-sm text-gray-700">
                               {item}
                             </span>
-                            <Button
-                              onClick={() => requestRemoveItem(key, index, item)}
-                              variant="ghost"
-                              size="icon-xs"
-                              className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                            >
-                              <svg
-                                className="w-4 h-4"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
+                            <div className="flex items-center gap-1">
+                              <Button
+                                onClick={() =>
+                                  openEditItemModal(key, index, item)
+                                }
+                                variant="ghost"
+                                size="icon-xs"
+                                className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
+                                title="Editar item"
                               >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M6 18L18 6M6 6l12 12"
-                                />
-                              </svg>
-                            </Button>
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                  />
+                                </svg>
+                              </Button>
+                              <Button
+                                onClick={() =>
+                                  requestRemoveItem(key, index, item)
+                                }
+                                variant="ghost"
+                                size="icon-xs"
+                                className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                              >
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M6 18L18 6M6 6l12 12"
+                                  />
+                                </svg>
+                              </Button>
+                            </div>
                           </div>
                         ))}
 
                         {/* Afegir nou item */}
-                        {addingItemTo === key ? (
-                          <div className="flex gap-2 mt-2">
-                            <input
-                              type="text"
-                              value={newItemText}
-                              onChange={(e) => setNewItemText(e.target.value)}
-                              onKeyPress={(e) =>
-                                e.key === "Enter" && addItem(key)
-                              }
-                              placeholder="Text del nou item..."
-                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                              autoFocus
-                            />
-                            <Button
-                              onClick={() => addItem(key)}
-                              className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
-                            >
-                              Afegir
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                setAddingItemTo(null);
-                                setNewItemText("");
-                              }}
-                              variant="outline"
-                              className="px-3 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50"
-                            >
-                              Cancel·lar
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            onClick={() => setAddingItemTo(key)}
-                            variant="outline"
-                            className="w-full flex items-center justify-center gap-1 px-3 py-2 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg border border-dashed border-indigo-300"
+                        <Button
+                          onClick={() => openCreateItemModal(key)}
+                          variant="outline"
+                          className="w-full flex items-center justify-center gap-1 px-3 py-2 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg border border-dashed border-indigo-300"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
                           >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 4v16m8-8H4"
-                              />
-                            </svg>
-                            Afegir item
-                          </Button>
-                        )}
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 4v16m8-8H4"
+                            />
+                          </svg>
+                          Afegir item
+                        </Button>
                       </div>
                     </div>
                   );
@@ -1405,6 +1788,54 @@ function CourseDetail() {
           </div>
         )}
       </div>
+
+      <ItemFormDialog
+        open={showItemDialog}
+        onOpenChange={(open) => {
+          setShowItemDialog(open);
+          if (!open) {
+            setItemCategoryKey(null);
+            setEditingItemIndex(null);
+            setNewItemText("");
+          }
+        }}
+        title={editingItemIndex !== null ? "Editar Item" : "Afegir Item"}
+        description={
+          editingItemIndex !== null
+            ? "Modifica el text de l'item."
+            : "Introdueix el text del nou item."
+        }
+        value={newItemText}
+        onValueChange={setNewItemText}
+        onSubmit={() => {
+          if (!itemCategoryKey) return;
+
+          if (editingItemIndex !== null) {
+            updateItem(itemCategoryKey, editingItemIndex);
+          } else {
+            addItem(itemCategoryKey);
+          }
+        }}
+        submitLabel={
+          editingItemIndex !== null ? "Guardar canvis" : "Afegir item"
+        }
+      />
+
+      <ImportItemsDialog
+        open={showImportItemsDialog}
+        onOpenChange={setShowImportItemsDialog}
+        onImport={importItemsData}
+        isImporting={isImportingItems}
+      />
+
+      <ExportItemsDialog
+        open={showExportItemsDialog}
+        onOpenChange={setShowExportItemsDialog}
+        categoryCount={Object.keys(categories).length}
+        itemCount={totalItemsCount}
+        onExport={exportItemsCsv}
+        isExporting={isExportingItems}
+      />
 
       <AlertDialog
         open={confirmDialog.open}
@@ -1496,102 +1927,32 @@ function CourseDetail() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
+      <CategoryFormDialog
         open={showNewCategory}
         onOpenChange={(open) => {
           setShowNewCategory(open);
           if (!open) {
+            setEditingCategoryKey(null);
             setNewCategoryName("");
             setNewCategoryColor("purple");
           }
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Afegir Nova Categoria</DialogTitle>
-            <DialogDescription>
-              Defineix el nom i el color de la categoria.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nom
-              </label>
-              <input
-                type="text"
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && createCategory()}
-                placeholder="Ex: Motricitat i Moviment"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                autoFocus
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Color
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {availableColors.map((color) => {
-                  const colorClasses = {
-                    purple: "!bg-purple-500 hover:!bg-purple-500",
-                    blue: "!bg-blue-500 hover:!bg-blue-500",
-                    green: "!bg-green-500 hover:!bg-green-500",
-                    orange: "!bg-orange-500 hover:!bg-orange-500",
-                    red: "!bg-red-500 hover:!bg-red-500",
-                    pink: "!bg-pink-500 hover:!bg-pink-500",
-                    yellow: "!bg-yellow-500 hover:!bg-yellow-500",
-                    teal: "!bg-teal-500 hover:!bg-teal-500",
-                    cyan: "!bg-cyan-500 hover:!bg-cyan-500",
-                    indigo: "!bg-indigo-500 hover:!bg-indigo-500",
-                    slate: "!bg-slate-500 hover:!bg-slate-500",
-                    emerald: "!bg-emerald-500 hover:!bg-emerald-500",
-                  };
-                  return (
-                    <Button
-                      key={color.key}
-                      onClick={() => setNewCategoryColor(color.key)}
-                      variant="ghost"
-                      size="icon"
-                      className={`w-10 h-10 rounded-lg ${colorClasses[color.key] || "bg-gray-400"} ${
-                        newCategoryColor === color.key
-                          ? "ring-2 ring-offset-2 ring-indigo-500"
-                          : ""
-                      }`}
-                      title={color.name}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                setShowNewCategory(false);
-                setNewCategoryName("");
-                setNewCategoryColor("purple");
-              }}
-              variant="outline"
-              className="flex-1"
-            >
-              Cancel·lar
-            </Button>
-            <Button
-              onClick={createCategory}
-              variant="brand"
-              disabled={!newCategoryName.trim()}
-              className="flex-1"
-            >
-              Crear Categoria
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title={
+          editingCategoryKey ? "Editar Categoria" : "Afegir Nova Categoria"
+        }
+        description={
+          editingCategoryKey
+            ? "Modifica el nom i el color de la categoria."
+            : "Defineix el nom i el color de la categoria."
+        }
+        name={newCategoryName}
+        onNameChange={setNewCategoryName}
+        color={newCategoryColor}
+        onColorChange={setNewCategoryColor}
+        availableColors={availableColors}
+        onSubmit={editingCategoryKey ? updateCategory : createCategory}
+        submitLabel={editingCategoryKey ? "Guardar canvis" : "Crear Categoria"}
+      />
 
       <Dialog
         open={showAddClassModal}
@@ -1655,7 +2016,12 @@ function CourseDetail() {
         onOpenChange={(open) => {
           setShowAddStudentModal(open);
           if (!open) {
-            setNewStudent({ name: "", age: "" });
+            setNewStudent({
+              name: "",
+              lastName: "",
+              gender: "no_indicat",
+              age: "",
+            });
             setSelectedClassId(null);
           }
         }}
@@ -1680,10 +2046,41 @@ function CourseDetail() {
                   setNewStudent({ ...newStudent, name: e.target.value })
                 }
                 onKeyDown={(e) => e.key === "Enter" && addStudent()}
-                placeholder="Ex: Marc Garcia"
+                placeholder="Ex: Marc"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 autoFocus
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Cognoms (només identificació)
+              </label>
+              <input
+                type="text"
+                value={newStudent.lastName}
+                onChange={(e) =>
+                  setNewStudent({ ...newStudent, lastName: e.target.value })
+                }
+                placeholder="Ex: Serra Puig"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Gènere
+              </label>
+              <select
+                value={newStudent.gender}
+                onChange={(e) =>
+                  setNewStudent({ ...newStudent, gender: e.target.value })
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="no_indicat">No indicat</option>
+                <option value="nen">Nen</option>
+                <option value="nena">Nena</option>
+                <option value="altre">Altre</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1714,7 +2111,12 @@ function CourseDetail() {
             <Button
               onClick={() => {
                 setShowAddStudentModal(false);
-                setNewStudent({ name: "", age: "" });
+                setNewStudent({
+                  name: "",
+                  lastName: "",
+                  gender: "no_indicat",
+                  age: "",
+                });
                 setSelectedClassId(null);
               }}
               variant="outline"

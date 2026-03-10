@@ -28,7 +28,8 @@ app.use(cors({
 
         return callback(new Error('Not allowed by CORS'));
     },
-    credentials: true // Permet enviar cookies
+    credentials: true, // Permet enviar cookies
+    exposedHeaders: ['Content-Disposition']
 }));
 
 // Configuració de sessions

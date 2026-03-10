@@ -83,9 +83,17 @@ const getClassesByCourse = async(courseId) => {
 
 const getStudentsByClass = async(classId) => {
     return query(
-        'SELECT id, class_id AS classId, name, age, enrolled_at AS enrolledAt FROM students WHERE class_id = ? ORDER BY id',
+        'SELECT id, class_id AS classId, name, last_name AS lastName, gender, age, enrolled_at AS enrolledAt FROM students WHERE class_id = ? ORDER BY id',
         [classId],
     );
+};
+
+const getStudentById = async(studentId) => {
+    const rows = await query(
+        'SELECT id, class_id AS classId, name, last_name AS lastName, gender, age, enrolled_at AS enrolledAt FROM students WHERE id = ? LIMIT 1',
+        [studentId],
+    );
+    return rows[0] || null;
 };
 
 const getReportsByStudent = async(studentId) => {
@@ -206,6 +214,7 @@ module.exports = {
     getCollaboratorsByCourse,
     getClassesByCourse,
     getStudentsByClass,
+    getStudentById,
     getReportsByStudent,
     getLatestReportByStudent,
     getReportById,

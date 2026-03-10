@@ -33,8 +33,40 @@ function CreateReport() {
   const [studentName, setStudentName] = useState(
     searchParams.get("studentName") || "",
   );
+  const [studentGender] = useState(
+    searchParams.get("studentGender") || "no_indicat",
+  );
   const [course, setCourse] = useState(searchParams.get("courseName") || "I3");
   const [language, setLanguage] = useState("Català");
+
+  const getNameInitialType = (name) => {
+    const firstLetter = String(name || "")
+      .trim()
+      .charAt(0)
+      .toLowerCase();
+    if (!firstLetter) return "consonant";
+
+    const vowels = new Set([
+      "a",
+      "e",
+      "i",
+      "o",
+      "u",
+      "à",
+      "á",
+      "è",
+      "é",
+      "ê",
+      "ì",
+      "í",
+      "ï",
+      "ò",
+      "ó",
+      "ú",
+      "ü",
+    ]);
+    return vowels.has(firstLetter) ? "vocal" : "consonant";
+  };
 
   // Carregar categories i colors del backend
   const loadCategories = async () => {
@@ -451,7 +483,9 @@ function CreateReport() {
 
     return {
       student: {
-        name: studentName.trim(),
+        name: "STUDENT_NAME",
+        nameInitialType: getNameInitialType(studentName),
+        gender: studentGender,
         date: new Date().toLocaleDateString("es-ES", {
           day: "2-digit",
           month: "2-digit",
@@ -498,6 +532,7 @@ function CreateReport() {
     navigate("/generating-report", {
       state: {
         reportData,
+        studentName: studentName.trim(),
         studentId,
         courseId,
       },

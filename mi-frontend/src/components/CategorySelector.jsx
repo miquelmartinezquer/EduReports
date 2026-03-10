@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { COLOR_CLASSES, DEFAULT_COLOR } from "../services/colorHelper";
 import { Button } from "@/components/ui/button";
 
@@ -8,11 +8,11 @@ function CategoryButton({ categoryKey, category, colorConfig, onClick }) {
     <Button
       onClick={() => onClick(categoryKey)}
       variant="outline"
-      className={`w-full p-4 border border-gray-200 rounded-lg ${colorConfig.hover} transition-colors text-left`}
+      className={`h-auto w-full justify-start px-3 py-2.5 border border-gray-200 rounded-lg ${colorConfig.hover} transition-colors text-left`}
     >
       <div className="flex items-center gap-4">
         <div
-          className={`w-3 h-12 ${colorConfig.bg} rounded-full shrink-0`}
+          className={`w-3 h-9 ${colorConfig.bg} rounded-full shrink-0`}
         ></div>
         <div className="flex-1">
           <h4 className="font-semibold text-gray-900">{category.name}</h4>
@@ -41,7 +41,7 @@ function ItemButton({ text, onClick }) {
     <Button
       onClick={onClick}
       variant="outline"
-      className="w-full p-4 border border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition-colors text-left"
+      className="h-auto w-full justify-start px-3 py-2.5 border border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition-colors text-left"
     >
       <p className="text-gray-700">{text}</p>
     </Button>

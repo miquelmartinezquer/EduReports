@@ -88,6 +88,8 @@ CREATE TABLE students (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   class_id INT UNSIGNED NOT NULL,
   name VARCHAR(180) NOT NULL,
+  last_name VARCHAR(220) NULL,
+  gender VARCHAR(20) NULL,
   age INT NULL,
   enrolled_at DATE NOT NULL,
   PRIMARY KEY (id),
