@@ -5,6 +5,7 @@ import Login from "./Login";
 import MyCourses from "./MyCourses";
 import CourseDetail from "./CourseDetail";
 import CreateReport from "./CreateReport";
+import TemplateBuilder from "./TemplateBuilder";
 import GeneratingReport from "./GeneratingReport";
 import GeneratedReport from "./GeneratedReport";
 import ReportView from "./ReportView";
@@ -36,6 +37,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <CreateReport />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/crear-plantilla"
+            element={
+              <ProtectedRoute>
+                <TemplateBuilder />
               </ProtectedRoute>
             }
           />

@@ -13,6 +13,11 @@ El JSON té aquest format:
     "course": "I3/I4/I5/Llar d'infants",
     "language": "Català/Castellà/Anglès"
   },
+  "conclusions": {
+    "enabled": true/false,
+    "title": "títol opcional de l'apartat de conclusió",
+    "guidance": "text opcional o null"
+  },
   "sections": [
     {
       "type": "section",
@@ -34,6 +39,9 @@ IMPORTANT - HAS DE SEGUIR L'ESTRUCTURA DEL JSON:
 7. Cada "section" del JSON ha de correspondre a un apartat de l'informe amb el seu títol.
 8. Mantén una correspondència literal amb els "items": no ampliïs el contingut amb idees noves.
 9. NO inventis seccions noves. Només treballa amb les que t'arriben al JSON.
+10. L'apartat de conclusions NOMÉS s'ha d'afegir si conclusions.enabled és true.
+11. Si conclusions.title té contingut, utilitza'l com a títol de l'apartat final de conclusions.
+12. Si conclusions.guidance té contingut, fes-lo servir com a directriu principal del paràgraf final de conclusions.
 
 IMPORTANT - NORMES DE FORMAT I ESTIL:
 1. Retorna NOMÉS codi HTML net (sense \`\`\`html). Comença amb <div class='prose...'>.
@@ -41,7 +49,7 @@ IMPORTANT - NORMES DE FORMAT I ESTIL:
 3. NO facis servir EMOJIS.
 4. NO incloguis cap títol general de document (cap <h1>) ni metadades de capçalera.
 5. NO incloguis mai l'estat de l'informe ("Completat", "Esborrany") dins l'HTML.
-6. L'HTML ha de contenir només el cos de l'informe (seccions + paràgrafs + conclusió).
+6. L'HTML ha de contenir només el cos de l'informe (seccions + paràgrafs, i conclusió només si conclusions.enabled = true).
 
 ESTIL DE REDACCIÓ (MOLT IMPORTANT):
 1. **SOBRIETAT I SIMPLICITAT:** El to ha de ser professional i proper, però NO poètic ni dramàtic.
@@ -82,7 +90,11 @@ INSTRUCCIONS DE CONTINGUT:
 - Reescriu cada item de forma clara i natural, sense afegir informació nova.
 - Mantén el mateix ordre dels items.
 - Si una secció té múltiples items, pots agrupar els relacionats en un o més paràgrafs amb transicions simples.
-- CONCLUSIÓ: Un paràgraf final de tancament en PRIMERA PERSONA. Ha de ser amable però professional ("Valoro positivament el seu esforç...", "Continuarem treballant..."). Res de "ha estat un honor acompanyar-la en aquest viatge màgic". Sigues real.`;
+- CONCLUSIÓ (OPCIONAL):
+  - Si conclusions.enabled = false: NO generis cap paràgraf final de conclusions.
+  - Si conclusions.enabled = true: afegeix un apartat final amb títol conclusions.title (o "Conclusions" si no està informat) i un paràgraf de tancament en PRIMERA PERSONA, amable i professional ("Valoro positivament el seu esforç...", "Continuarem treballant...").
+  - Si conclusions.guidance té text: incorpora'l explícitament al contingut de la conclusió, sense inventar fets nous.
+  - Evita frases grandiloqüents com "ha estat un honor acompanyar-la en aquest viatge màgic". Sigues real.`;
 
 module.exports = {
   REPORT_SYSTEM_PROMPT

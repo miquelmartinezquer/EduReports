@@ -28,8 +28,12 @@ function MyCourses() {
   const [courses, setCourses] = useState([]);
   const [sharedCourses, setSharedCourses] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [newCourseName, setNewCourseName] = useState("");
   const [newCourseLevel, setNewCourseLevel] = useState("I3");
+  const [editingCourseId, setEditingCourseId] = useState(null);
+  const [editingCourseName, setEditingCourseName] = useState("");
+  const [editingCourseLevel, setEditingCourseLevel] = useState("I3");
   const [deleteCourseId, setDeleteCourseId] = useState(null);
   const [deleteCourseNameInput, setDeleteCourseNameInput] = useState("");
   const [loading, setLoading] = useState(true);
@@ -134,6 +138,66 @@ function MyCourses() {
       setSharedCourses([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openEditCourseModal = (course) => {
+    setEditingCourseId(course.id);
+    setEditingCourseName(course.name || "");
+    setEditingCourseLevel(course.level || "I3");
+    setShowEditModal(true);
+  };
+
+  const updateCourse = async () => {
+    if (!editingCourseId) {
+      toast.error("No s'ha trobat el curs a editar");
+      return;
+    }
+
+    if (!editingCourseName.trim()) {
+      toast.error("Introdueix el nom del curs");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://localhost:3000/courses/${editingCourseId}`,
+        {
+          method: "PUT",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: editingCourseName,
+            level: editingCourseLevel,
+          }),
+        },
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.success) {
+        toast.error(data.error || "No s'ha pogut actualitzar el curs");
+        return;
+      }
+
+      setCourses((prev) =>
+        prev.map((course) =>
+          course.id === editingCourseId
+            ? { ...course, ...data.course }
+            : course,
+        ),
+      );
+
+      setShowEditModal(false);
+      setEditingCourseId(null);
+      setEditingCourseName("");
+      setEditingCourseLevel("I3");
+      toast.success("Curs actualitzat correctament");
+    } catch (error) {
+      console.error("Error actualitzant curs:", error);
+      toast.error("No s'ha pogut actualitzar el curs");
     }
   };
 
@@ -330,91 +394,119 @@ function MyCourses() {
                         />
                       </svg>
                     </div>
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Curs propi
-                    </span>
-                    <AlertDialog
-                      open={deleteCourseId === course.id}
-                      onOpenChange={(open) => {
-                        if (open) {
-                          openDeleteCourseDialog(course);
-                        } else {
-                          closeDeleteCourseDialog();
-                        }
-                      }}
-                    >
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openDeleteCourseDialog(course);
-                          }}
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-gray-400 hover:text-red-600 transition-colors"
-                          aria-label={`Eliminar curs ${course.name}`}
+                    <div className="flex items-center gap-1">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Curs propi
+                      </span>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditCourseModal(course);
+                        }}
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-gray-400 hover:text-indigo-600 transition-colors"
+                        aria-label={`Editar curs ${course.name}`}
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
                         >
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                        </Button>
-                      </AlertDialogTrigger>
-
-                      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Eliminar curs?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Aquesta accio eliminara el curs{" "}
-                            <strong>{course.name}</strong> i no es pot desfer.
-                            <br />
-                            <br />
-                            Escriu el nom del curs per confirmar l'eliminació.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-700">
-                            Nom del curs
-                          </label>
-                          <input
-                            type="text"
-                            value={deleteCourseNameInput}
-                            onChange={(e) =>
-                              setDeleteCourseNameInput(e.target.value)
-                            }
-                            placeholder={course.name}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                            autoFocus
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                           />
-                        </div>
-
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel·lar</AlertDialogCancel>
-                          <AlertDialogAction
-                            variant="destructive"
-                            disabled={!isDeleteCourseNameValid(course.name)}
-                            onClick={async () => {
-                              const deleted = await deleteCourse(course.id);
-                              if (deleted) {
-                                closeDeleteCourseDialog();
-                              }
+                        </svg>
+                      </Button>
+                      <AlertDialog
+                        open={deleteCourseId === course.id}
+                        onOpenChange={(open) => {
+                          if (open) {
+                            openDeleteCourseDialog(course);
+                          } else {
+                            closeDeleteCourseDialog();
+                          }
+                        }}
+                      >
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openDeleteCourseDialog(course);
                             }}
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-gray-400 hover:text-red-600 transition-colors"
+                            aria-label={`Eliminar curs ${course.name}`}
                           >
-                            Si, eliminar
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
+                            </svg>
+                          </Button>
+                        </AlertDialogTrigger>
+
+                        <AlertDialogContent
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Eliminar curs?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Aquesta accio eliminara el curs{" "}
+                              <strong>{course.name}</strong> i no es pot desfer.
+                              <br />
+                              <br />
+                              Escriu el nom del curs per confirmar l'eliminació.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">
+                              Nom del curs
+                            </label>
+                            <input
+                              type="text"
+                              value={deleteCourseNameInput}
+                              onChange={(e) =>
+                                setDeleteCourseNameInput(e.target.value)
+                              }
+                              placeholder={course.name}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                              autoFocus
+                            />
+                          </div>
+
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel·lar</AlertDialogCancel>
+                            <AlertDialogAction
+                              variant="destructive"
+                              disabled={!isDeleteCourseNameValid(course.name)}
+                              onClick={async () => {
+                                const deleted = await deleteCourse(course.id);
+                                if (deleted) {
+                                  closeDeleteCourseDialog();
+                                }
+                              }}
+                            >
+                              Si, eliminar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-0.5">
                     {course.name}
@@ -596,6 +688,81 @@ function MyCourses() {
                 className="flex-1"
               >
                 Crear
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={showEditModal}
+          onOpenChange={(open) => {
+            setShowEditModal(open);
+            if (!open) {
+              setEditingCourseId(null);
+              setEditingCourseName("");
+              setEditingCourseLevel("I3");
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Curs</DialogTitle>
+              <DialogDescription>
+                Actualitza les dades del curs.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nom del Curs
+              </label>
+              <input
+                type="text"
+                value={editingCourseName}
+                onChange={(e) => setEditingCourseName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && updateCourse()}
+                placeholder="Ex: Matemàtiques I3"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nivell
+              </label>
+              <select
+                value={editingCourseLevel}
+                onChange={(e) => setEditingCourseLevel(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="Llar d'infants">Llar d'infants</option>
+                <option value="I3">I3</option>
+                <option value="I4">I4</option>
+                <option value="I5">I5</option>
+              </select>
+            </div>
+
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingCourseId(null);
+                  setEditingCourseName("");
+                  setEditingCourseLevel("I3");
+                }}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel·lar
+              </Button>
+              <Button
+                onClick={updateCourse}
+                disabled={!editingCourseName.trim()}
+                variant="brand"
+                className="flex-1"
+              >
+                Guardar
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -10,6 +10,16 @@ import FinalizeModal from "./components/FinalizeModal";
 import fetchWithAuth from "./utils/fetchWithAuth";
 import NavBar from "./components/NavBar";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function CreateReport() {
   const navigate = useNavigate();
@@ -18,14 +28,27 @@ function CreateReport() {
   const [elementCounter, setElementCounter] = useState(0);
   const [draggedElement, setDraggedElement] = useState(null);
   const [showItemModal, setShowItemModal] = useState(false);
+  const [showStartTemplateModal, setShowStartTemplateModal] = useState(false);
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+  const [showDeleteSectionModal, setShowDeleteSectionModal] = useState(false);
+  const [showDeleteReportModal, setShowDeleteReportModal] = useState(false);
+  const [deletingReport, setDeletingReport] = useState(false);
   const [selectedHeaderId, setSelectedHeaderId] = useState(null);
+  const [pendingDeleteHeader, setPendingDeleteHeader] = useState(null);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [jsonOutput, setJsonOutput] = useState("");
   const [categoriesData, setCategoriesData] = useState({});
   const [availableColors, setAvailableColors] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [templateLoadError, setTemplateLoadError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [includeConclusions, setIncludeConclusions] = useState(false);
+  const [conclusionsTitle, setConclusionsTitle] = useState(
+    "Observacions finals",
+  );
+  const [conclusionsGuidance, setConclusionsGuidance] = useState("");
 
   // Dades de l'alumne
   const studentId = searchParams.get("studentId");
@@ -92,7 +115,7 @@ function CreateReport() {
   };
 
   const loadState = async () => {
-    if (!studentId) return; // No carregar si no hi ha studentId
+    if (!studentId) return false; // No carregar si no hi ha studentId
 
     console.log("Intentant carregar esborrany per studentId:", studentId);
 
@@ -105,7 +128,19 @@ function CreateReport() {
         // Migrar datos antiguos a la nueva estructura si es necesario
         const migratedElements = draft.elements.map((el) => {
           if (el.type === "header" && !el.items) {
-            return { ...el, items: [] };
+            return {
+              ...el,
+              items: [],
+              isConclusion: Boolean(el.isConclusion),
+              conclusionGuidance: el.conclusionGuidance || "",
+            };
+          }
+          if (el.type === "header") {
+            return {
+              ...el,
+              isConclusion: Boolean(el.isConclusion),
+              conclusionGuidance: el.conclusionGuidance || "",
+            };
           }
           return el;
         });
@@ -120,34 +155,114 @@ function CreateReport() {
         setCourse(draft.course);
         setLanguage(draft.language);
         setElementCounter(draft.elementCounter);
+        setIncludeConclusions(Boolean(draft.conclusions?.enabled));
+        setConclusionsTitle(
+          draft.conclusions?.title?.trim() || "Observacions finals",
+        );
+        setConclusionsGuidance(draft.conclusions?.guidance || "");
+        return true;
       }
+
+      return false;
     } catch (error) {
       // Si no hi ha esborrany (404) o error, no passa res
       console.log(
         "No s'ha trobat cap esborrany per aquest alumne:",
         error.message,
       );
+      return false;
     }
   };
 
-  const saveProgressToBackend = async (isSilent = false) => {
-    if (!studentId) {
-      if (!isSilent) {
-        alert("No es pot guardar: falta l'identificador de l'alumne");
-      }
-      console.warn("No es pot guardar: falta studentId");
+  const loadTemplates = async () => {
+    if (!courseId) {
+      setTemplates([]);
       return;
     }
 
-    const draftData = {
-      courseId,
-      elements,
-      studentName,
-      course,
-      language,
-      elementCounter,
-    };
+    try {
+      setLoadingTemplates(true);
+      setTemplateLoadError("");
+      const data = await fetchWithAuth(`/courses/${courseId}/templates`);
+      setTemplates(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error carregant plantilles:", error);
+      setTemplateLoadError(
+        error.message || "No s'han pogut carregar les plantilles",
+      );
+      setTemplates([]);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
 
+  const applyTemplate = async (template) => {
+    const sections = Array.isArray(template?.sections) ? template.sections : [];
+    const rebuiltElements = [];
+    let counter = 0;
+
+    sections.forEach((section) => {
+      counter += 1;
+      const headerId = `element-${counter}`;
+      const items = Array.isArray(section.items) ? section.items : [];
+
+      const mappedItems = items.map((item) => {
+        counter += 1;
+        return {
+          id: `item-${counter}`,
+          type: "item",
+          content: item.content || "",
+          category: item.category || "Escriptura lliure",
+        };
+      });
+
+      rebuiltElements.push({
+        id: headerId,
+        type: "header",
+        content: section.title || "",
+        order: rebuiltElements.length + 1,
+        items: mappedItems,
+        isConclusion: false,
+        conclusionGuidance: "",
+      });
+    });
+
+    setElements(rebuiltElements);
+    setElementCounter(counter);
+    const templateConclusions = template?.conclusions || {};
+    const nextIncludeConclusions = Boolean(templateConclusions.enabled);
+    const nextConclusionsTitle =
+      templateConclusions.title?.trim() || "Observacions finals";
+    const nextConclusionsGuidance = templateConclusions.guidance || "";
+
+    setIncludeConclusions(nextIncludeConclusions);
+    setConclusionsTitle(nextConclusionsTitle);
+    setConclusionsGuidance(nextConclusionsGuidance);
+    setShowStartTemplateModal(false);
+
+    const wasSaved = await saveProgressToBackend(true, {
+      elements: rebuiltElements,
+      elementCounter: counter,
+      conclusions: {
+        enabled: nextIncludeConclusions,
+        title: nextConclusionsTitle,
+        guidance: nextConclusionsGuidance,
+      },
+    });
+
+    setSaveMessage(
+      wasSaved
+        ? `Plantilla "${template.name}" carregada i guardada`
+        : `Plantilla "${template.name}" carregada`,
+    );
+    setTimeout(() => setSaveMessage(""), 2500);
+  };
+
+  const startBlankReport = () => {
+    setShowStartTemplateModal(false);
+  };
+
+  const persistDraft = async (draftData, isSilent = false) => {
     console.log("Guardant esborrany per studentId:", studentId, draftData);
 
     try {
@@ -166,12 +281,42 @@ function CreateReport() {
         setSaveMessage("Progrés guardat correctament");
         setTimeout(() => setSaveMessage(""), 3000);
       }
+
+      return true;
     } catch (error) {
       console.error("Error guardant el progrés:", error);
       if (!isSilent) {
         alert("Error guardant el progrés");
       }
+      return false;
     }
+  };
+
+  const saveProgressToBackend = async (isSilent = false, overrides = {}) => {
+    if (!studentId) {
+      if (!isSilent) {
+        alert("No es pot guardar: falta l'identificador de l'alumne");
+      }
+      console.warn("No es pot guardar: falta studentId");
+      return false;
+    }
+
+    const draftData = {
+      courseId,
+      elements,
+      studentName,
+      course,
+      language,
+      elementCounter,
+      conclusions: {
+        enabled: includeConclusions,
+        title: conclusionsTitle,
+        guidance: conclusionsGuidance,
+      },
+      ...overrides,
+    };
+
+    return persistDraft(draftData, isSilent);
   };
 
   const saveProgress = () => {
@@ -183,7 +328,11 @@ function CreateReport() {
     const initializeData = async () => {
       await loadCategories();
       await loadColors();
-      await loadState();
+      await loadTemplates();
+      const hasDraft = await loadState();
+      if (!hasDraft) {
+        setShowStartTemplateModal(true);
+      }
     };
 
     initializeData();
@@ -191,6 +340,7 @@ function CreateReport() {
 
   // Auto-save amb useEffect - guardar al backend
   useEffect(() => {
+    if (showStartTemplateModal) return;
     if (!studentId) return; // No guardar si no hi ha studentId
 
     // Debounce: espera 2s després de l'últim canvi per guardar
@@ -200,11 +350,26 @@ function CreateReport() {
     }, 2000);
 
     return () => clearTimeout(timeoutId); // Cleanup
-  }, [elements, studentName, course, language, elementCounter, studentId]);
+  }, [
+    elements,
+    studentName,
+    course,
+    language,
+    elementCounter,
+    includeConclusions,
+    conclusionsTitle,
+    conclusionsGuidance,
+    studentId,
+  ]);
 
   // Bloquejar scroll quan els modals estan oberts
   useEffect(() => {
-    if (showItemModal || showCategoryManager || showFinalizeModal) {
+    if (
+      showItemModal ||
+      showCategoryManager ||
+      showFinalizeModal ||
+      showStartTemplateModal
+    ) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "unset";
@@ -214,7 +379,12 @@ function CreateReport() {
     return () => {
       document.body.style.overflow = "unset";
     };
-  }, [showItemModal, showCategoryManager, showFinalizeModal]);
+  }, [
+    showItemModal,
+    showCategoryManager,
+    showFinalizeModal,
+    showStartTemplateModal,
+  ]);
 
   const addHeader = () => {
     const newCounter = elementCounter + 1;
@@ -224,6 +394,8 @@ function CreateReport() {
       content: "",
       order: newCounter,
       items: [], // Array para contener los items de esta sección
+      isConclusion: false,
+      conclusionGuidance: "",
     };
     setElements([...elements, newElement]);
     setElementCounter(newCounter);
@@ -340,6 +512,29 @@ function CreateReport() {
       });
       setElements(updatedElements);
     }
+  };
+
+  const requestDeleteSection = (headerId) => {
+    const header = elements.find((el) => el.id === headerId);
+    if (!header) return;
+
+    setPendingDeleteHeader({
+      id: header.id,
+      title: header.content?.trim() || "(sense títol)",
+      itemCount: Array.isArray(header.items) ? header.items.length : 0,
+    });
+    setShowDeleteSectionModal(true);
+  };
+
+  const closeDeleteSectionModal = () => {
+    setShowDeleteSectionModal(false);
+    setPendingDeleteHeader(null);
+  };
+
+  const confirmDeleteSection = () => {
+    if (!pendingDeleteHeader?.id) return;
+    removeElement(pendingDeleteHeader.id);
+    closeDeleteSectionModal();
   };
 
   const clearAll = () => {
@@ -495,6 +690,17 @@ function CreateReport() {
         language: language,
       },
       sections: sections,
+      conclusions: {
+        enabled: includeConclusions,
+        title:
+          includeConclusions && conclusionsTitle.trim()
+            ? conclusionsTitle.trim()
+            : "Observacions finals",
+        guidance:
+          includeConclusions && conclusionsGuidance.trim()
+            ? conclusionsGuidance.trim()
+            : null,
+      },
     };
   };
 
@@ -545,6 +751,45 @@ function CreateReport() {
 
   const closeJsonModal = () => {
     setShowJsonModal(false);
+  };
+
+  const closeDeleteReportModal = () => {
+    if (deletingReport) return;
+    setShowDeleteReportModal(false);
+  };
+
+  const goBackToCourse = () => {
+    navigate(courseId ? `/cursos/${courseId}` : "/");
+  };
+
+  const deleteReportAndBack = async () => {
+    try {
+      setDeletingReport(true);
+
+      if (studentId) {
+        await fetchWithAuth(`/drafts/${studentId}`, {
+          method: "DELETE",
+        });
+      }
+
+      goBackToCourse();
+    } catch (error) {
+      // Si no hi ha esborrany, igualment tornem al curs.
+      if (
+        String(error?.message || "")
+          .toLowerCase()
+          .includes("no s'ha trobat cap esborrany")
+      ) {
+        goBackToCourse();
+        return;
+      }
+
+      console.error("Error eliminant informe:", error);
+      alert(error.message || "No s'ha pogut eliminar l'informe");
+    } finally {
+      setDeletingReport(false);
+      setShowDeleteReportModal(false);
+    }
   };
 
   const copyJson = () => {
@@ -667,6 +912,43 @@ function CreateReport() {
                     <option value="Anglès">Anglès</option>
                   </select>
                 </div>
+
+                <div className="pt-2 border-t border-gray-200 space-y-3">
+                  <label className="flex items-start gap-2 text-sm font-medium text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={includeConclusions}
+                      onChange={(e) => setIncludeConclusions(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    Observacions finals
+                  </label>
+
+                  {includeConclusions && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Títol de l'apartat
+                      </label>
+                      <input
+                        type="text"
+                        value={conclusionsTitle}
+                        onChange={(e) => setConclusionsTitle(e.target.value)}
+                        placeholder="Ex: Observacions finals"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 mb-3"
+                      />
+
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Pautes per a la IA (opcional)
+                      </label>
+                      <textarea
+                        value={conclusionsGuidance}
+                        onChange={(e) => setConclusionsGuidance(e.target.value)}
+                        placeholder="Ex: destacar autonomia i actitud positiva"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-24"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -683,7 +965,7 @@ function CreateReport() {
                 </p>
               </div>
 
-              <div className="min-h-[300px]">
+              <div className="min-h-75">
                 <div className="space-y-4">
                   {elements.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
@@ -734,60 +1016,62 @@ function CreateReport() {
                       </Button>
                     </div>
                   ) : (
-                    elements.map((element) => (
-                      <div key={element.id} className="space-y-3">
-                        {/* Header */}
-                        <DraggableBlock
-                          element={element}
-                          onDragStart={handleDragStart}
-                          onDragEnd={handleDragEnd}
-                          onDragOver={handleDragOver}
-                          onDrop={handleDrop}
-                          onContentChange={(id, content) =>
-                            updateElementContent(id, content)
-                          }
-                          onRemove={(id) => removeElement(id)}
-                        />
+                    elements.map((element) => {
+                      return (
+                        <div key={element.id} className="space-y-3">
+                          {/* Header */}
+                          <DraggableBlock
+                            element={element}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                            onContentChange={(id, content) =>
+                              updateElementContent(id, content)
+                            }
+                            onRemove={requestDeleteSection}
+                          />
 
-                        {/* Items dentro del header */}
-                        <div className="ml-8 border-l-2 border-indigo-200 pl-4">
-                          {element.items && element.items.length > 0 && (
-                            <div className="space-y-3 mb-3">
-                              {element.items.map((item) => (
-                                <DraggableBlock
-                                  key={item.id}
-                                  element={item}
-                                  onDragStart={handleDragStart}
-                                  onDragEnd={handleDragEnd}
-                                  onDragOver={handleDragOver}
-                                  onDrop={handleDrop}
-                                  onContentChange={(id, content) =>
-                                    updateElementContent(
-                                      element.id,
-                                      content,
-                                      id,
-                                    )
-                                  }
-                                  onRemove={(id) =>
-                                    removeElement(element.id, id)
-                                  }
-                                />
-                              ))}
+                          {/* Items dentro del header */}
+                          <div className="ml-8 border-l-2 border-indigo-200 pl-4">
+                            {element.items && element.items.length > 0 && (
+                              <div className="space-y-3 mb-3">
+                                {element.items.map((item) => (
+                                  <DraggableBlock
+                                    key={item.id}
+                                    element={item}
+                                    onDragStart={handleDragStart}
+                                    onDragEnd={handleDragEnd}
+                                    onDragOver={handleDragOver}
+                                    onDrop={handleDrop}
+                                    onContentChange={(id, content) =>
+                                      updateElementContent(
+                                        element.id,
+                                        content,
+                                        id,
+                                      )
+                                    }
+                                    onRemove={(id) =>
+                                      removeElement(element.id, id)
+                                    }
+                                  />
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Botó per afegir items a aquest apartat */}
+                            <div className="flex gap-2">
+                              <AddItemButton
+                                onClick={() => addItem(element.id)}
+                              />
+                              <AddFreeTextButton
+                                onClick={() => addFreeTextBlock(element.id)}
+                              />
                             </div>
-                          )}
-
-                          {/* Botó per afegir items a aquest apartat */}
-                          <div className="flex gap-2">
-                            <AddItemButton
-                              onClick={() => addItem(element.id)}
-                            />
-                            <AddFreeTextButton
-                              onClick={() => addFreeTextBlock(element.id)}
-                            />
                           </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
 
                   {/* Botó per afegir nou apartat */}
@@ -797,7 +1081,14 @@ function CreateReport() {
                 </div>
 
                 <div className="mt-6 pt-6 border-t border-gray-200">
-                  <div className="flex justify-end items-center">
+                  <div className="flex justify-between items-center">
+                    <Button
+                      type="button"
+                      onClick={() => setShowDeleteReportModal(true)}
+                      variant="destructive"
+                    >
+                      Borrar Informe
+                    </Button>
                     <div className="flex gap-3 items-center">
                       {saveMessage && (
                         <span className="text-sm text-emerald-600 font-medium flex items-center gap-2">
@@ -865,6 +1156,153 @@ function CreateReport() {
           </div>
         </div>
       </div>
+
+      <AlertDialog
+        open={showDeleteSectionModal}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDeleteSectionModal();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar apartat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              S'eliminara l'apartat{" "}
+              <strong>{pendingDeleteHeader?.title}</strong>
+              {pendingDeleteHeader?.itemCount > 0 && (
+                <>
+                  {" "}
+                  juntament amb <strong>
+                    {pendingDeleteHeader.itemCount}
+                  </strong>{" "}
+                  {pendingDeleteHeader.itemCount === 1
+                    ? "item associat"
+                    : "items associats"}
+                  .
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={closeDeleteSectionModal}>
+              Cancel·lar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={confirmDeleteSection}
+            >
+              Si, eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={showDeleteReportModal}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDeleteReportModal();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Borrar informe?</AlertDialogTitle>
+            <AlertDialogDescription>
+              S'eliminara l'esborrany d'aquest informe i tornaras al curs.
+              Aquesta accio no es pot desfer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={closeDeleteReportModal}>
+              Cancel·lar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={deleteReportAndBack}
+              disabled={deletingReport}
+            >
+              {deletingReport ? "Eliminant..." : "Si, borrar informe"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {showStartTemplateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-start p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Com vols començar l'informe?
+                </h3>
+                <p className="text-gray-500 text-sm mt-1">
+                  Tria una plantilla existent o crea un informe buit.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {loadingTemplates ? (
+                <p className="text-sm text-gray-500">Carregant plantilles...</p>
+              ) : templateLoadError ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-red-600">{templateLoadError}</p>
+                  <Button variant="outline" onClick={loadTemplates}>
+                    Tornar a carregar plantilles
+                  </Button>
+                </div>
+              ) : templates.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No hi ha plantilles disponibles en aquest curs.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {templates.map((template) => {
+                    const sectionCount = Array.isArray(template.sections)
+                      ? template.sections.length
+                      : 0;
+                    const itemCount = Array.isArray(template.sections)
+                      ? template.sections.reduce(
+                          (acc, section) =>
+                            acc +
+                            (Array.isArray(section.items)
+                              ? section.items.length
+                              : 0),
+                          0,
+                        )
+                      : 0;
+
+                    return (
+                      <button
+                        key={template.id}
+                        type="button"
+                        className="w-full text-left p-4 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                        onClick={() => applyTemplate(template)}
+                      >
+                        <p className="font-semibold text-gray-900">
+                          {template.name}
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {sectionCount} apartats · {itemCount} items
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex justify-end">
+              <Button variant="brand" onClick={startBlankReport}>
+                Crear informe buit
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showItemModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -1006,6 +1444,9 @@ function CreateReport() {
         course={course}
         language={language}
         elements={elements}
+        includeConclusions={includeConclusions}
+        conclusionsTitle={conclusionsTitle}
+        conclusionsGuidance={conclusionsGuidance}
       />
     </div>
   );

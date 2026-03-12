@@ -134,9 +134,25 @@ const getDraftByStudentAndUser = async(studentId, userId) => {
     if (!rows[0]) return null;
 
     const draft = rows[0];
+    const parsedElementsJson = draft.elements ? JSON.parse(draft.elements) : [];
+    const isLegacyArrayFormat = Array.isArray(parsedElementsJson);
+
     return {
         ...draft,
-        elements: draft.elements ? JSON.parse(draft.elements) : [],
+        elements: isLegacyArrayFormat
+            ? parsedElementsJson
+            : (parsedElementsJson?.elements || []),
+        conclusions: isLegacyArrayFormat
+            ? {
+                enabled: false,
+                title: 'Observacions finals',
+                guidance: null,
+            }
+            : {
+                enabled: Boolean(parsedElementsJson?.conclusions?.enabled),
+                title: parsedElementsJson?.conclusions?.title || 'Observacions finals',
+                guidance: parsedElementsJson?.conclusions?.guidance || null,
+            },
     };
 };
 

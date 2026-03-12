@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const requireAuth = require('../middleware/requireAuth');
 const coursesController = require('../controllers/courses.controller');
+const templatesRoutes = require('./templates');
 
 router.use(requireAuth);
 
@@ -20,10 +21,12 @@ router.delete('/:courseId/collaborators/:id', coursesController.deleteCollaborat
 router.get('/:courseId/classes', coursesController.getClasses);
 router.post('/:courseId/classes', coursesController.createClass);
 router.delete('/:courseId/classes/:id', coursesController.deleteClass);
+router.put('/:courseId/classes/:id', coursesController.updateClass);
 
 router.get('/:courseId/classes/:classId/students', coursesController.getStudentsByClass);
 router.post('/:courseId/classes/:classId/students', coursesController.addStudent);
 router.delete('/:courseId/classes/:classId/students/:id', coursesController.deleteStudent);
+router.put('/:courseId/classes/:classId/students/:id', coursesController.updateStudent);
 
 router.get('/:courseId/categories/colors', coursesController.getCategoryColors);
 router.get('/:courseId/categories', coursesController.getCategories);
@@ -34,6 +37,8 @@ router.put('/:courseId/categories/:key', coursesController.updateCategory);
 router.delete('/:courseId/categories/:key', coursesController.deleteCategory);
 router.post('/:courseId/categories/:key/items', coursesController.addCategoryItem);
 router.delete('/:courseId/categories/:key/items/:index', coursesController.deleteCategoryItem);
+
+router.use('/:courseId/templates', templatesRoutes);
 
 router.get('/:courseId/students/:studentId/reports', coursesController.getStudentReports);
 router.get('/:courseId/students/:studentId/reports/latest', coursesController.getLatestStudentReport);

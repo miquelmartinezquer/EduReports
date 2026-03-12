@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
 import fetchWithAuth from "./utils/fetchWithAuth";
@@ -12,7 +12,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
@@ -29,15 +28,41 @@ import CategoryFormDialog from "./components/CategoryFormDialog";
 import ItemFormDialog from "./components/ItemFormDialog";
 import ImportItemsDialog from "./components/ImportItemsDialog";
 import ExportItemsDialog from "./components/ExportItemsDialog";
-import ExpandableActionButton from "./components/ExpandableActionButton";
+import CourseTabsNav from "./components/course-detail/CourseTabsNav";
+import ClassesTab from "./components/course-detail/ClassesTab";
+import CollaboratorsTab from "./components/course-detail/CollaboratorsTab";
+import ItemsTab from "./components/course-detail/ItemsTab";
+import TemplatesTab from "./components/course-detail/TemplatesTab";
+
+const VALID_TABS = ["classes", "collaborators", "items", "templates"];
+
+const getStoredTab = (storageKey) => {
+  try {
+    const savedTab = localStorage.getItem(storageKey);
+    if (savedTab && VALID_TABS.includes(savedTab)) {
+      return savedTab;
+    }
+  } catch (error) {
+    console.warn(
+      "No s'ha pogut llegir el tab actiu des de localStorage",
+      error,
+    );
+  }
+
+  return "classes";
+};
 
 function CourseDetail() {
   const { courseId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const activeTabStorageKey = `courseDetail.activeTab.${courseId || "default"}`;
+  const skipNextTabPersistRef = useRef(true);
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("classes"); // 'classes', 'collaborators' o 'items'
+  const [activeTab, setActiveTab] = useState(() =>
+    getStoredTab(activeTabStorageKey),
+  ); // 'classes', 'collaborators', 'items' o 'templates'
   const [categories, setCategories] = useState({});
   const [studentReports, setStudentReports] = useState({}); // { studentId: report }
   const [studentDrafts, setStudentDrafts] = useState({}); // { studentId: draft }
@@ -61,8 +86,12 @@ function CourseDetail() {
   const [showAddCollaboratorModal, setShowAddCollaboratorModal] =
     useState(false);
   const [showAddClassModal, setShowAddClassModal] = useState(false);
+  const [showEditClassModal, setShowEditClassModal] = useState(false);
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showEditStudentModal, setShowEditStudentModal] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState(null);
+  const [editingClassId, setEditingClassId] = useState(null);
+  const [editingStudentId, setEditingStudentId] = useState(null);
   const [deleteClassId, setDeleteClassId] = useState(null);
   const [deleteClassNameInput, setDeleteClassNameInput] = useState("");
 
@@ -71,7 +100,18 @@ function CourseDetail() {
     email: "",
   });
   const [newClass, setNewClass] = useState({ name: "" });
+  const [editingClass, setEditingClass] = useState({
+    id: null,
+    name: "",
+    schedule: "",
+  });
   const [newStudent, setNewStudent] = useState({
+    name: "",
+    lastName: "",
+    gender: "no_indicat",
+    age: "",
+  });
+  const [editingStudent, setEditingStudent] = useState({
     name: "",
     lastName: "",
     gender: "no_indicat",
@@ -98,6 +138,24 @@ function CourseDetail() {
     actionLabel: "Si, eliminar",
     action: null,
   });
+
+  useEffect(() => {
+    skipNextTabPersistRef.current = true;
+    setActiveTab(getStoredTab(activeTabStorageKey));
+  }, [activeTabStorageKey]);
+
+  useEffect(() => {
+    if (skipNextTabPersistRef.current) {
+      skipNextTabPersistRef.current = false;
+      return;
+    }
+
+    try {
+      localStorage.setItem(activeTabStorageKey, activeTab);
+    } catch (error) {
+      console.warn("No s'ha pogut guardar el tab actiu a localStorage", error);
+    }
+  }, [activeTab, activeTabStorageKey]);
 
   useEffect(() => {
     loadCourseDetails();
@@ -356,6 +414,55 @@ function CourseDetail() {
     }
   };
 
+  const openEditClassModal = (classItem) => {
+    if (!classItem?.id) return;
+    setEditingClass({
+      id: classItem.id,
+      name: classItem.name || "",
+      schedule: classItem.schedule || "",
+    });
+    setShowEditClassModal(true);
+  };
+
+  const updateClass = async () => {
+    if (!editingClass.id || !editingClass.name.trim()) return;
+
+    try {
+      const data = await fetchWithAuth(
+        `/courses/${courseId}/classes/${editingClass.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: editingClass.name,
+            schedule: editingClass.schedule || null,
+          }),
+        },
+      );
+
+      if (data.success) {
+        setCourse((prev) => ({
+          ...prev,
+          classes: prev.classes.map((c) =>
+            c.id === editingClass.id
+              ? {
+                  ...c,
+                  ...data.class,
+                  students: c.students,
+                }
+              : c,
+          ),
+        }));
+        setShowEditClassModal(false);
+        setEditingClass({ id: null, name: "", schedule: "" });
+        toast.success("Classe actualitzada correctament");
+      }
+    } catch (error) {
+      console.error("Error actualitzant classe:", error);
+      toast.error("No s'ha pogut actualitzar la classe");
+    }
+  };
+
   const openDeleteClassDialog = (classItem) => {
     setDeleteClassId(classItem.id);
     setDeleteClassNameInput("");
@@ -452,6 +559,70 @@ function CourseDetail() {
     } catch (error) {
       console.error("Error eliminant alumne:", error);
       toast.error("No s'ha pogut eliminar l'alumne");
+    }
+  };
+
+  const openEditStudentModal = (classId, student) => {
+    setEditingClassId(classId);
+    setEditingStudentId(student.id);
+    setEditingStudent({
+      name: student.name || "",
+      lastName: student.lastName || "",
+      gender: student.gender || "no_indicat",
+      age: student.age ? String(student.age) : "",
+    });
+    setShowEditStudentModal(true);
+  };
+
+  const updateStudent = async () => {
+    if (!editingClassId || !editingStudentId || !editingStudent.name.trim()) {
+      return;
+    }
+
+    try {
+      const data = await fetchWithAuth(
+        `/courses/${courseId}/classes/${editingClassId}/students/${editingStudentId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: editingStudent.name,
+            lastName: editingStudent.lastName || null,
+            gender: editingStudent.gender || null,
+            age: editingStudent.age ? parseInt(editingStudent.age, 10) : null,
+          }),
+        },
+      );
+
+      if (data.success) {
+        setCourse((prev) => ({
+          ...prev,
+          classes: prev.classes.map((c) =>
+            c.id === editingClassId
+              ? {
+                  ...c,
+                  students: c.students.map((s) =>
+                    s.id === editingStudentId ? data.student : s,
+                  ),
+                }
+              : c,
+          ),
+        }));
+
+        setShowEditStudentModal(false);
+        setEditingClassId(null);
+        setEditingStudentId(null);
+        setEditingStudent({
+          name: "",
+          lastName: "",
+          gender: "no_indicat",
+          age: "",
+        });
+        toast.success("Alumne actualitzat correctament");
+      }
+    } catch (error) {
+      console.error("Error actualitzant alumne:", error);
+      toast.error("No s'ha pogut actualitzar l'alumne");
     }
   };
 
@@ -921,871 +1092,77 @@ function CourseDetail() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="mb-6 bg-white rounded-lg shadow">
-          <div className="flex border-b">
-            <Button
-              onClick={() => setActiveTab("classes")}
-              variant="ghost"
-              className={`flex-1 px-6 py-4 font-semibold transition-colors rounded-none ${
-                activeTab === "classes"
-                  ? "text-indigo-600"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Classes ({course.classes?.length || 0})
-            </Button>
-            <Button
-              onClick={() => setActiveTab("collaborators")}
-              variant="ghost"
-              className={`flex-1 px-6 py-4 font-semibold transition-colors rounded-none ${
-                activeTab === "collaborators"
-                  ? "text-indigo-600"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Col·laboradors ({course.collaborators?.length || 0})
-            </Button>
-            <Button
-              onClick={() => setActiveTab("items")}
-              variant="ghost"
-              className={`flex-1 px-6 py-4 font-semibold transition-colors rounded-none ${
-                activeTab === "items"
-                  ? "text-indigo-600"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Items ({totalItemsCount})
-            </Button>
-          </div>
-        </div>
+        <CourseTabsNav
+          activeTab={activeTab}
+          onChangeTab={setActiveTab}
+          course={course}
+          totalItemsCount={totalItemsCount}
+        />
 
         {/* Content */}
         {activeTab === "classes" && (
-          <div>
-            <div className="mb-6">
-              <Button
-                onClick={() => setShowAddClassModal(true)}
-                variant="brand"
-                size="lg"
-                className="flex items-center gap-2"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-                Afegir Classe
-              </Button>
-            </div>
-
-            <div className="space-y-4">
-              {course.classes?.length === 0 ? (
-                <div className="bg-white rounded-lg shadow p-12 text-center">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg
-                      className="w-8 h-8 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    No hi ha cap classe encara
-                  </h3>
-                  <p className="text-gray-500 text-sm">
-                    Crea la primera classe per començar
-                  </p>
-                </div>
-              ) : (
-                course.classes?.map((classItem) => (
-                  <div
-                    key={classItem.id}
-                    className="bg-white rounded-lg shadow p-6"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900">
-                          {classItem.name}
-                        </h3>
-                        {classItem.schedule && (
-                          <p className="text-sm text-gray-600 mt-1">
-                            📅 {classItem.schedule}
-                          </p>
-                        )}
-                      </div>
-                      <AlertDialog
-                        open={deleteClassId === classItem.id}
-                        onOpenChange={(open) => {
-                          if (open) {
-                            openDeleteClassDialog(classItem);
-                          } else {
-                            closeDeleteClassDialog();
-                          }
-                        }}
-                      >
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            onClick={() => openDeleteClassDialog(classItem)}
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-gray-400 hover:text-red-600 transition-colors"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              Eliminar classe?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              S'eliminara la classe{" "}
-                              <strong>{classItem.name}</strong> amb tots els
-                              seus alumnes.
-                              <br />
-                              <br />
-                              Escriu el nom de la classe per confirmar
-                              l'eliminació.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium text-gray-700">
-                              Nom de la classe
-                            </label>
-                            <input
-                              type="text"
-                              value={deleteClassNameInput}
-                              onChange={(e) =>
-                                setDeleteClassNameInput(e.target.value)
-                              }
-                              placeholder={classItem.name}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                              autoFocus
-                            />
-                          </div>
-
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel·lar</AlertDialogCancel>
-                            <AlertDialogAction
-                              variant="destructive"
-                              disabled={!isDeleteClassNameValid(classItem.name)}
-                              onClick={async () => {
-                                await deleteClass(classItem.id);
-                                closeDeleteClassDialog();
-                              }}
-                            >
-                              Si, eliminar
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-
-                    <div className="border-t pt-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-gray-900">
-                          Alumnes ({classItem.students?.length || 0})
-                        </h4>
-                        <Button
-                          onClick={() => {
-                            setSelectedClassId(classItem.id);
-                            setShowAddStudentModal(true);
-                          }}
-                          variant="brand"
-                          size="sm"
-                        >
-                          + Afegir Alumne
-                        </Button>
-                      </div>
-
-                      {classItem.students?.length === 0 ? (
-                        <p className="text-sm text-gray-500 italic">
-                          No hi ha alumnes en aquesta classe
-                        </p>
-                      ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {classItem.students?.map((student) => {
-                            const hasReport = studentReports[student.id];
-                            const hasDraft = studentDrafts[student.id];
-                            return (
-                              <div
-                                key={student.id}
-                                className="flex flex-col p-4 bg-gray-50 rounded-lg border border-gray-200"
-                              >
-                                <div className="flex items-start justify-between mb-3">
-                                  <div className="flex-1">
-                                    <p className="font-medium text-gray-900">
-                                      {studentDisplayName(student) ||
-                                        student.name}
-                                    </p>
-                                    <div className="flex items-center gap-2">
-                                      {student.gender && (
-                                        <p className="text-xs text-gray-600">
-                                          {genderLabel(student.gender)}
-                                        </p>
-                                      )}
-                                      {student.age && (
-                                        <p className="text-xs text-gray-600">
-                                          {student.age} anys
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        className="text-gray-400 hover:text-red-600 transition-colors"
-                                      >
-                                        <svg
-                                          className="w-4 h-4"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M6 18L18 6M6 6l12 12"
-                                          />
-                                        </svg>
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>
-                                          Eliminar alumne?
-                                        </AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          S'eliminara l'alumne{" "}
-                                          <strong>
-                                            {studentDisplayName(student) ||
-                                              student.name}
-                                          </strong>{" "}
-                                          d'aquesta classe.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>
-                                          Cancel·lar
-                                        </AlertDialogCancel>
-                                        <AlertDialogAction
-                                          variant="destructive"
-                                          onClick={() =>
-                                            deleteStudent(
-                                              classItem.id,
-                                              student.id,
-                                            )
-                                          }
-                                        >
-                                          Si, eliminar
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </div>
-                                <div className="flex gap-2">
-                                  {hasReport ? (
-                                    <Button
-                                      onClick={() =>
-                                        navigate(
-                                          `/informe/${hasReport.id}?studentId=${student.id}&courseId=${courseId}`,
-                                        )
-                                      }
-                                      variant="success"
-                                      size="sm"
-                                      className="flex-1 flex items-center justify-center gap-1"
-                                    >
-                                      <svg
-                                        className="w-4 h-4"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                                        />
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                                        />
-                                      </svg>
-                                      Veure Informe
-                                    </Button>
-                                  ) : hasDraft ? (
-                                    <Button
-                                      onClick={() =>
-                                        navigate(
-                                          `/crear-informe?studentId=${student.id}&studentName=${encodeURIComponent(studentDisplayName(student) || student.name)}&studentGender=${encodeURIComponent(student.gender || "no_indicat")}&courseId=${courseId}&courseName=${encodeURIComponent(course.level || course.name)}`,
-                                        )
-                                      }
-                                      variant="warning"
-                                      size="sm"
-                                      className="flex-1 flex items-center justify-center gap-1"
-                                    >
-                                      <svg
-                                        className="w-4 h-4"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                        />
-                                      </svg>
-                                      Seguir Editant
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      onClick={() =>
-                                        navigate(
-                                          `/crear-informe?studentId=${student.id}&studentName=${encodeURIComponent(studentDisplayName(student) || student.name)}&studentGender=${encodeURIComponent(student.gender || "no_indicat")}&courseId=${courseId}&courseName=${encodeURIComponent(course.level || course.name)}`,
-                                        )
-                                      }
-                                      variant="brand"
-                                      size="sm"
-                                      className="flex-1 flex items-center justify-center gap-1"
-                                    >
-                                      <svg
-                                        className="w-4 h-4"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M12 4v16m8-8H4"
-                                        />
-                                      </svg>
-                                      Crear Informe
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          <ClassesTab
+            classItems={course.classes}
+            deleteClassId={deleteClassId}
+            deleteClassNameInput={deleteClassNameInput}
+            onOpenAddClass={() => setShowAddClassModal(true)}
+            onOpenEditClass={openEditClassModal}
+            onOpenDeleteClassDialog={openDeleteClassDialog}
+            onCloseDeleteClassDialog={closeDeleteClassDialog}
+            onDeleteClassNameInputChange={setDeleteClassNameInput}
+            isDeleteClassNameValid={isDeleteClassNameValid}
+            onDeleteClass={deleteClass}
+            onOpenAddStudent={(classId) => {
+              setSelectedClassId(classId);
+              setShowAddStudentModal(true);
+            }}
+            studentReports={studentReports}
+            studentDrafts={studentDrafts}
+            studentDisplayName={studentDisplayName}
+            genderLabel={genderLabel}
+            onOpenEditStudentModal={openEditStudentModal}
+            onDeleteStudent={deleteStudent}
+            onOpenViewReport={(reportId, studentId) =>
+              navigate(
+                `/informe/${reportId}?studentId=${studentId}&courseId=${courseId}`,
+              )
+            }
+            onOpenCreateOrContinueReport={(student) =>
+              navigate(
+                `/crear-informe?studentId=${student.id}&studentName=${encodeURIComponent(studentDisplayName(student) || student.name)}&studentGender=${encodeURIComponent(student.gender || "no_indicat")}&courseId=${courseId}&courseName=${encodeURIComponent(course.level || course.name)}`,
+              )
+            }
+          />
         )}
 
         {activeTab === "collaborators" && (
-          <div>
-            <div className="mb-6">
-              <Button
-                onClick={() => setShowAddCollaboratorModal(true)}
-                variant="success"
-                size="lg"
-                className="flex items-center gap-2"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-                Afegir Col·laborador
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {course.collaborators?.length === 0 ? (
-                <div className="col-span-full bg-white rounded-lg shadow p-12 text-center">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg
-                      className="w-8 h-8 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    No hi ha col·laboradors encara
-                  </h3>
-                  <p className="text-gray-500 text-sm">
-                    Afegeix el primer col·laborador al curs
-                  </p>
-                </div>
-              ) : (
-                course.collaborators?.map((collab) => {
-                  const isOwner = Boolean(collab.isOwner);
-                  const isCurrentUser = user && collab.userId === user.id;
-
-                  return (
-                    <div
-                      key={collab.id}
-                      className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
-                          <svg
-                            className="w-6 h-6 text-emerald-600"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                            />
-                          </svg>
-                        </div>
-                        {!isOwner &&
-                          (isCurrentUser ? (
-                            <Button
-                              onClick={() => requestDeleteCollaborator(collab)}
-                              variant="outline"
-                              size="sm"
-                              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                            >
-                              Sortir del curs
-                            </Button>
-                          ) : (
-                            <Button
-                              onClick={() => requestDeleteCollaborator(collab)}
-                              variant="ghost"
-                              size="icon-sm"
-                              className="text-gray-400 hover:text-red-600 transition-colors"
-                            >
-                              <svg
-                                className="w-5 h-5"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M6 18L18 6M6 6l12 12"
-                                />
-                              </svg>
-                            </Button>
-                          ))}
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                        {collab.name}
-                      </h3>
-                      <div className="flex items-center gap-2 mb-2">
-                        <p className="text-sm text-indigo-600 font-medium">
-                          {collab.role}
-                        </p>
-                        {isOwner && (
-                          <span
-                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800"
-                            title="Propietari del curs"
-                          >
-                            <svg
-                              className="w-3 h-3 mr-1"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                            </svg>
-                            Propietari
-                          </span>
-                        )}
-                        {isCurrentUser && (
-                          <span
-                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
-                            title="Aquest ets tu"
-                          >
-                            Tu
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-600">{collab.email}</p>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="mt-8 bg-white rounded-lg shadow p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Invitacions Pendents ({pendingInvitations.length})
-                </h3>
-                <Button
-                  onClick={loadPendingInvitations}
-                  variant="outline"
-                  size="sm"
-                  className="text-sm px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Actualitzar
-                </Button>
-              </div>
-
-              {pendingInvitations.length === 0 ? (
-                <p className="text-sm text-gray-500 italic">
-                  No hi ha invitacions pendents en aquest curs
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {pendingInvitations.map((invitation) => (
-                    <div
-                      key={invitation.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-200"
-                    >
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {invitation.userName || "Usuari"}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {invitation.userEmail}
-                        </p>
-                      </div>
-
-                      {course.userId === user?.id && (
-                        <Button
-                          onClick={() =>
-                            requestDeletePendingInvitation(invitation)
-                          }
-                          variant="destructive"
-                          size="sm"
-                          className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                        >
-                          Eliminar
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          <CollaboratorsTab
+            course={course}
+            user={user}
+            pendingInvitations={pendingInvitations}
+            onAddCollaborator={() => setShowAddCollaboratorModal(true)}
+            onDeleteCollaborator={requestDeleteCollaborator}
+            onRefreshInvitations={loadPendingInvitations}
+            onDeletePendingInvitation={requestDeletePendingInvitation}
+          />
         )}
 
         {activeTab === "items" && (
-          <div>
-            <div className="mb-6 flex items-center gap-3">
-              <ExpandableActionButton
-                onClick={openCreateCategoryModal}
-                label="Afegir Categoria"
-                variant="brand"
-                size="lg"
-                icon={
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
-                }
-              />
-              <ExpandableActionButton
-                type="button"
-                onClick={() => setShowImportItemsDialog(true)}
-                label="Carregar Items"
-                variant="outline"
-                size="lg"
-                icon={
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 16V6m0 0l-4 4m4-4l4 4M4 18h16"
-                    />
-                  </svg>
-                }
-              />
-              <ExpandableActionButton
-                type="button"
-                onClick={() => setShowExportItemsDialog(true)}
-                label="Descarregar Items"
-                variant="outline"
-                size="lg"
-                icon={
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v10m0 0l-4-4m4 4l4-4M4 6h16"
-                    />
-                  </svg>
-                }
-              />
-            </div>
+          <ItemsTab
+            categories={categories}
+            onOpenCreateCategoryModal={openCreateCategoryModal}
+            onOpenImportItems={() => setShowImportItemsDialog(true)}
+            onOpenExportItems={() => setShowExportItemsDialog(true)}
+            onOpenEditCategoryModal={openEditCategoryModal}
+            onRequestDeleteCategory={requestDeleteCategory}
+            onOpenEditItemModal={openEditItemModal}
+            onRequestRemoveItem={requestRemoveItem}
+            onOpenCreateItemModal={openCreateItemModal}
+          />
+        )}
 
-            {/* Llista de categories */}
-            {Object.keys(categories).length === 0 ? (
-              <div className="bg-white rounded-lg shadow p-12 text-center">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg
-                    className="w-8 h-8 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  No hi ha categories encara
-                </h3>
-                <p className="text-gray-500 text-sm">
-                  Crea la primera categoria per organitzar els teus items
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {Object.entries(categories).map(([key, category]) => {
-                  const colorClasses = {
-                    purple: "bg-purple-500",
-                    blue: "bg-blue-500",
-                    green: "bg-green-500",
-                    orange: "bg-orange-500",
-                    red: "bg-red-500",
-                    pink: "bg-pink-500",
-                    yellow: "bg-yellow-500",
-                    teal: "bg-teal-500",
-                    cyan: "bg-cyan-500",
-                    indigo: "bg-indigo-500",
-                    slate: "bg-slate-500",
-                    emerald: "bg-emerald-500",
-                  };
-                  const colorClass =
-                    colorClasses[category.color] || "bg-gray-400";
-
-                  return (
-                    <div
-                      key={key}
-                      className="border border-gray-200 rounded-lg overflow-hidden bg-white"
-                    >
-                      <div className="flex items-center justify-between p-4 bg-gray-50 border-b border-gray-200">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-8 h-8 ${colorClass} rounded-lg`}
-                          ></div>
-                          <div>
-                            <h4 className="font-semibold text-gray-900">
-                              {category.name}
-                            </h4>
-                            <p className="text-xs text-gray-500">
-                              Items: {category.items.length}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            onClick={() => openEditCategoryModal(key, category)}
-                            variant="ghost"
-                            size="icon-sm"
-                            className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
-                            title="Editar categoria"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
-                          </Button>
-                          <Button
-                            onClick={() =>
-                              requestDeleteCategory(key, category.name)
-                            }
-                            variant="ghost"
-                            size="icon-sm"
-                            className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="p-4 space-y-2">
-                        {category.items.map((item, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
-                          >
-                            <span className="text-sm text-gray-700">
-                              {item}
-                            </span>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                onClick={() =>
-                                  openEditItemModal(key, index, item)
-                                }
-                                variant="ghost"
-                                size="icon-xs"
-                                className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
-                                title="Editar item"
-                              >
-                                <svg
-                                  className="w-4 h-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                  />
-                                </svg>
-                              </Button>
-                              <Button
-                                onClick={() =>
-                                  requestRemoveItem(key, index, item)
-                                }
-                                variant="ghost"
-                                size="icon-xs"
-                                className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                              >
-                                <svg
-                                  className="w-4 h-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M6 18L18 6M6 6l12 12"
-                                  />
-                                </svg>
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-
-                        {/* Afegir nou item */}
-                        <Button
-                          onClick={() => openCreateItemModal(key)}
-                          variant="outline"
-                          className="w-full flex items-center justify-center gap-1 px-3 py-2 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg border border-dashed border-indigo-300"
-                        >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M12 4v16m8-8H4"
-                            />
-                          </svg>
-                          Afegir item
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+        {activeTab === "templates" && (
+          <TemplatesTab courseId={courseId} courseName={course.name} />
         )}
       </div>
 
@@ -2012,6 +1389,84 @@ function CourseDetail() {
       </Dialog>
 
       <Dialog
+        open={showEditClassModal}
+        onOpenChange={(open) => {
+          setShowEditClassModal(open);
+          if (!open) {
+            setEditingClass({ id: null, name: "", schedule: "" });
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Classe</DialogTitle>
+            <DialogDescription>
+              Modifica el nom i l'horari de la classe.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nom de la Classe
+              </label>
+              <input
+                type="text"
+                value={editingClass.name}
+                onChange={(e) =>
+                  setEditingClass({ ...editingClass, name: e.target.value })
+                }
+                onKeyDown={(e) => e.key === "Enter" && updateClass()}
+                placeholder="Ex: Grup A - Matins"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Horari (opcional)
+              </label>
+              <input
+                type="text"
+                value={editingClass.schedule}
+                onChange={(e) =>
+                  setEditingClass({
+                    ...editingClass,
+                    schedule: e.target.value,
+                  })
+                }
+                onKeyDown={(e) => e.key === "Enter" && updateClass()}
+                placeholder="Ex: Dilluns i dimecres 9:00-10:00"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowEditClassModal(false);
+                setEditingClass({ id: null, name: "", schedule: "" });
+              }}
+              variant="outline"
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+            >
+              Cancel·lar
+            </Button>
+            <Button
+              onClick={updateClass}
+              disabled={!editingClass.name.trim()}
+              variant="brand"
+              className="flex-1"
+            >
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={showAddStudentModal}
         onOpenChange={(open) => {
           setShowAddStudentModal(open);
@@ -2131,6 +1586,139 @@ function CourseDetail() {
               className="flex-1"
             >
               Afegir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showEditStudentModal}
+        onOpenChange={(open) => {
+          setShowEditStudentModal(open);
+          if (!open) {
+            setEditingClassId(null);
+            setEditingStudentId(null);
+            setEditingStudent({
+              name: "",
+              lastName: "",
+              gender: "no_indicat",
+              age: "",
+            });
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Alumne</DialogTitle>
+            <DialogDescription>
+              Modifica les dades de l'alumne.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nom de l'Alumne
+              </label>
+              <input
+                type="text"
+                value={editingStudent.name}
+                onChange={(e) =>
+                  setEditingStudent({ ...editingStudent, name: e.target.value })
+                }
+                onKeyDown={(e) => e.key === "Enter" && updateStudent()}
+                placeholder="Ex: Marc"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Cognoms (només identificació)
+              </label>
+              <input
+                type="text"
+                value={editingStudent.lastName}
+                onChange={(e) =>
+                  setEditingStudent({
+                    ...editingStudent,
+                    lastName: e.target.value,
+                  })
+                }
+                placeholder="Ex: Serra Puig"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Gènere
+              </label>
+              <select
+                value={editingStudent.gender}
+                onChange={(e) =>
+                  setEditingStudent({
+                    ...editingStudent,
+                    gender: e.target.value,
+                  })
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="no_indicat">No indicat</option>
+                <option value="nen">Nen</option>
+                <option value="nena">Nena</option>
+                <option value="altre">Altre</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Edat (opcional)
+              </label>
+              <input
+                type="number"
+                value={editingStudent.age}
+                onChange={(e) =>
+                  setEditingStudent({ ...editingStudent, age: e.target.value })
+                }
+                placeholder="Ex: 5"
+                min="0"
+                max="100"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+
+            <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
+              <AlertTitle>Privacitat</AlertTitle>
+              <AlertDescription>
+                Els noms i dades dels alumnes mai es compartiran amb la IA.
+              </AlertDescription>
+            </Alert>
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowEditStudentModal(false);
+                setEditingClassId(null);
+                setEditingStudentId(null);
+                setEditingStudent({
+                  name: "",
+                  lastName: "",
+                  gender: "no_indicat",
+                  age: "",
+                });
+              }}
+              variant="outline"
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+            >
+              Cancel·lar
+            </Button>
+            <Button
+              onClick={updateStudent}
+              disabled={!editingStudent.name.trim()}
+              variant="brand"
+              className="flex-1"
+            >
+              Guardar
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -28,6 +28,7 @@ const upsertDraftByStudent = async(req, res) => {
     const {
         courseId,
         elements,
+        conclusions,
         studentName,
         course,
         language,
@@ -39,6 +40,15 @@ const upsertDraftByStudent = async(req, res) => {
     }
 
     try {
+        const draftPayload = {
+            elements,
+            conclusions: {
+                enabled: Boolean(conclusions?.enabled),
+                title: conclusions?.title || 'Observacions finals',
+                guidance: conclusions?.guidance || null,
+            },
+        };
+
         await query(
             `INSERT INTO report_drafts (
                 student_id, course_id, user_id, elements_json, student_name,
@@ -56,7 +66,7 @@ const upsertDraftByStudent = async(req, res) => {
                 parsedStudentId,
                 courseId || null,
                 userId,
-                JSON.stringify(elements),
+                JSON.stringify(draftPayload),
                 studentName,
                 course,
                 language,

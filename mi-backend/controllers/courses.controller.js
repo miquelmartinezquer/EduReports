@@ -323,6 +323,48 @@ const createClass = async(req, res) => {
     }
 };
 
+const updateClass = async(req, res) => {
+    const { courseId, id } = req.params;
+    const { name, schedule } = req.body;
+
+    if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: 'El nom de la classe és requerit' });
+    }
+
+    try {
+        const existingRows = await query(
+            'SELECT id, course_id AS courseId, name, schedule, created_at AS createdAt FROM classes WHERE id = ? AND course_id = ? LIMIT 1',
+            [parseInt(id), parseInt(courseId)],
+        );
+
+        if (!existingRows[0]) {
+            return res.status(404).json({ error: 'Classe no trobada' });
+        }
+
+        const normalizedSchedule = (() => {
+            const value = String(schedule || '').trim();
+            return value || null;
+        })();
+
+        await query(
+            'UPDATE classes SET name = ?, schedule = ? WHERE id = ? AND course_id = ?',
+            [String(name).trim(), normalizedSchedule, parseInt(id), parseInt(courseId)],
+        );
+
+        const rows = await query(
+            'SELECT id, course_id AS courseId, name, schedule, created_at AS createdAt FROM classes WHERE id = ? LIMIT 1',
+            [parseInt(id)],
+        );
+
+        res.json({
+            success: true,
+            class: rows[0],
+        });
+    } catch (error) {
+        sqlError(res, 'courses PUT /:courseId/classes/:id', error);
+    }
+};
+
 const deleteClass = async(req, res) => {
     const { id } = req.params;
 
@@ -402,6 +444,71 @@ const addStudent = async(req, res) => {
         });
     } catch (error) {
         sqlError(res, 'courses POST /:courseId/classes/:classId/students', error);
+    }
+};
+
+const updateStudent = async(req, res) => {
+    const { id } = req.params;
+    const { name, lastName, age, gender } = req.body;
+
+    if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: 'El nom de l\'alumne és requerit' });
+    }
+
+    const normalizedGender = (() => {
+        const value = String(gender || '').trim().toLowerCase();
+        if (!value) return null;
+
+        const allowedValues = ['nen', 'nena', 'altre', 'no_indicat'];
+        if (!allowedValues.includes(value)) {
+            return undefined;
+        }
+        return value;
+    })();
+
+    if (normalizedGender === undefined) {
+        return res.status(400).json({ error: 'Gènere invàlid' });
+    }
+
+    const normalizedLastName = (() => {
+        const value = String(lastName || '').trim();
+        return value || null;
+    })();
+
+    const normalizedAge = age === null || age === undefined || age === ''
+        ? null
+        : parseInt(age, 10);
+
+    if (normalizedAge !== null && Number.isNaN(normalizedAge)) {
+        return res.status(400).json({ error: 'Edat invàlida' });
+    }
+
+    try {
+        const existingRows = await query(
+            'SELECT id, class_id AS classId, name, last_name AS lastName, gender, age, enrolled_at AS enrolledAt FROM students WHERE id = ? LIMIT 1',
+            [parseInt(id)],
+        );
+
+        if (!existingRows[0]) {
+            return res.status(404).json({ error: 'Alumne no trobat' });
+        }
+
+        await query(
+            'UPDATE students SET name = ?, last_name = ?, gender = ?, age = ? WHERE id = ?',
+            [String(name).trim(), normalizedLastName, normalizedGender, normalizedAge, parseInt(id)],
+        );
+
+        const rows = await query(
+            'SELECT id, class_id AS classId, name, last_name AS lastName, gender, age, enrolled_at AS enrolledAt FROM students WHERE id = ? LIMIT 1',
+            [parseInt(id)],
+        );
+
+        res.json({
+            success: true,
+            student: rows[0],
+        });
+    } catch (error) {
+        sqlError(res, 'courses PUT /:courseId/classes/:classId/students/:id', error);
     }
 };
 
@@ -867,22 +974,47 @@ const createStudentReport = async(req, res) => {
 };
 
 const updateReport = async(req, res) => {
-    const { reportId } = req.params;
+    const { courseId, reportId } = req.params;
     const { title, htmlContent, status } = req.body;
 
     try {
-        const report = await readModel.getReportById(parseInt(reportId));
+        const parsedCourseId = parseInt(courseId);
+        const parsedReportId = parseInt(reportId);
+        const userId = req.session.userId;
+
+        if (Number.isNaN(parsedCourseId) || Number.isNaN(parsedReportId)) {
+            return res.status(400).json({ error: 'Paràmetres invàlids' });
+        }
+
+        const report = await readModel.getReportById(parsedReportId);
 
         if (!report) {
             return res.status(404).json({ error: 'Informe no trobat' });
         }
 
+        if (report.courseId !== parsedCourseId) {
+            return res.status(404).json({ error: 'Informe no trobat' });
+        }
+
+        const course = await readModel.getCourseById(parsedCourseId);
+        if (!course) {
+            return res.status(404).json({ error: 'Curs no trobat' });
+        }
+
+        const isOwner = course.userId === userId;
+        const collaborators = await readModel.getCollaboratorsByCourse(parsedCourseId);
+        const isCollaborator = collaborators.some((c) => c.userId === userId);
+
+        if (!isOwner && !isCollaborator) {
+            return res.status(403).json({ error: 'No tens permís per editar aquest informe' });
+        }
+
         await query(
             'UPDATE reports SET title = ?, html_content = ?, status = ? WHERE id = ?',
-            [title || report.title, htmlContent || report.htmlContent, status || report.status, parseInt(reportId)],
+            [title || report.title, htmlContent || report.htmlContent, status || report.status, parsedReportId],
         );
 
-        const updated = await readModel.getReportById(parseInt(reportId));
+        const updated = await readModel.getReportById(parsedReportId);
 
         res.json({
             success: true,
@@ -973,9 +1105,11 @@ module.exports = {
     deleteCollaborator,
     getClasses,
     createClass,
+    updateClass,
     deleteClass,
     getStudentsByClass,
     addStudent,
+    updateStudent,
     deleteStudent,
     getCategoryColors,
     getCategories,

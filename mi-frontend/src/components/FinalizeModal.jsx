@@ -6,6 +6,9 @@ function FinalizeModal({
   course,
   language,
   elements,
+  includeConclusions,
+  conclusionsTitle,
+  conclusionsGuidance,
 }) {
   if (!isOpen) return null;
 
@@ -137,6 +140,31 @@ function FinalizeModal({
                   )}
                 </div>
               ))}
+
+              {includeConclusions && (
+                <div className="border border-emerald-200 rounded-lg p-4 bg-emerald-50">
+                  <div className="flex items-start gap-3 mb-3">
+                    <span className="flex items-center justify-center w-6 h-6 bg-emerald-600 text-white text-xs font-bold rounded">
+                      {elements.length + 1}
+                    </span>
+                    <div className="flex-1">
+                      <h5 className="font-semibold text-emerald-900">
+                        {conclusionsTitle?.trim() || "Observacions finals"}
+                      </h5>
+                    </div>
+                  </div>
+                  {conclusionsGuidance?.trim() ? (
+                    <p className="ml-9 text-sm text-emerald-900">
+                      Pautes per la IA: {conclusionsGuidance.trim()}
+                    </p>
+                  ) : (
+                    <p className="ml-9 text-sm text-emerald-800 italic">
+                      Sense pautes específiques. La IA generarà les observacions
+                      finals a partir de la resta de seccions.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
