@@ -1,9 +1,9 @@
 // Helper per fer peticions amb autenticació automàtica
 
-const API_BASE_URL = 'http://localhost:3000';
+import { buildApiUrl } from "../config/api";
 
 export const fetchWithAuth = async(url, options = {}) => {
-    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+    const fullUrl = buildApiUrl(url);
 
     const hasBody = options.body !== undefined && options.body !== null;
     const baseHeaders = {

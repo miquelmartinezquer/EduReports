@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/components/ui/sonner";
+import { API_BASE_URL } from "./config/api";
 import CategoryFormDialog from "./components/CategoryFormDialog";
 import ItemFormDialog from "./components/ItemFormDialog";
 import ImportItemsDialog from "./components/ImportItemsDialog";
@@ -971,7 +972,7 @@ function CourseDetail() {
       setIsExportingItems(true);
 
       const response = await fetch(
-        `http://localhost:3000/courses/${courseId}/categories/export/csv`,
+        `${API_BASE_URL}/courses/${courseId}/categories/export/csv`,
         {
           method: "GET",
           credentials: "include",

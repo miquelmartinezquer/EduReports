@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
+import { API_BASE_URL } from "./config/api";
 
 function MyCourses() {
   const navigate = useNavigate();
@@ -101,10 +102,10 @@ function MyCourses() {
     try {
       setLoading(true);
       const [myCoursesResponse, sharedCoursesResponse] = await Promise.all([
-        fetch("http://localhost:3000/courses", {
+        fetch(`${API_BASE_URL}/courses`, {
           credentials: "include",
         }),
-        fetch("http://localhost:3000/courses/shared", {
+        fetch(`${API_BASE_URL}/courses/shared`, {
           credentials: "include",
         }),
       ]);
@@ -161,7 +162,7 @@ function MyCourses() {
 
     try {
       const response = await fetch(
-        `http://localhost:3000/courses/${editingCourseId}`,
+        `${API_BASE_URL}/courses/${editingCourseId}`,
         {
           method: "PUT",
           credentials: "include",
@@ -208,7 +209,7 @@ function MyCourses() {
     }
 
     try {
-      const response = await fetch("http://localhost:3000/courses", {
+      const response = await fetch(`${API_BASE_URL}/courses`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -242,7 +243,7 @@ function MyCourses() {
 
   const deleteCourse = async (id) => {
     try {
-      const response = await fetch(`http://localhost:3000/courses/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/courses/${id}`, {
         method: "DELETE",
         credentials: "include",
       });
