@@ -149,31 +149,21 @@ function NavBar() {
   return (
     <nav className="bg-white border-b border-gray-200 px-4 py-3 mb-1">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <svg
-              className="w-5 h-5 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-              />
-            </svg>
-          </div>
-          <span className="font-semibold text-gray-900">
-            Sistema d'Informes
-          </span>
+        <div className="flex items-center">
+          <img
+            src="/logo-hortizontal.png"
+            alt="EduReports"
+            className="h-8 w-auto"
+          />
         </div>
 
         <div className="flex items-center gap-4 relative">
-          <div className="relative">
+          <div
+            className="relative"
+            onMouseEnter={() => setShowInvitations(true)}
+            onMouseLeave={() => setShowInvitations(false)}
+          >
             <Button
-              onClick={() => setShowInvitations((prev) => !prev)}
               variant="ghost"
               className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
             >
@@ -198,78 +188,91 @@ function NavBar() {
             </Button>
 
             {showInvitations && (
-              <div className="absolute right-0 mt-2 w-[22rem] bg-white border border-gray-200 rounded-xl shadow-lg z-50">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="font-semibold text-gray-900">Invitacions</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Gestiona les invitacions pendents
-                  </p>
-                </div>
-
-                <div className="max-h-80 overflow-auto">
-                  {loadingInvitations ? (
-                    <p className="px-4 py-3 text-sm text-gray-500">
-                      Carregant...
+              <div className="absolute right-0 top-full pt-2 z-50 w-[22rem]">
+                <div className="bg-white border border-gray-200 rounded-xl shadow-lg">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="font-semibold text-gray-900">Invitacions</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Gestiona les invitacions pendents
                     </p>
-                  ) : pendingInvitations.length === 0 ? (
-                    <p className="px-4 py-3 text-sm text-gray-500">
-                      No tens invitacions pendents
-                    </p>
-                  ) : (
-                    pendingInvitations.map((invitation) => {
-                      const invitationId =
-                        invitation.id ?? invitation.invitationId;
-                      const normalizedInvitationId = Number(invitationId);
+                  </div>
 
-                      const courseLabel =
-                        invitation.courseName || `Curs #${invitation.courseId}`;
-                      const inviter = invitation.inviterName;
+                  <div className="max-h-80 overflow-auto">
+                    {loadingInvitations ? (
+                      <p className="px-4 py-3 text-sm text-gray-500">
+                        Carregant...
+                      </p>
+                    ) : pendingInvitations.length === 0 ? (
+                      <p className="px-4 py-3 text-sm text-gray-500">
+                        No tens invitacions pendents
+                      </p>
+                    ) : (
+                      pendingInvitations.map((invitation) => {
+                        const invitationId =
+                          invitation.id ?? invitation.invitationId;
+                        const normalizedInvitationId = Number(invitationId);
 
-                      return (
-                        <div
-                          key={invitationId}
-                          className="px-4 py-3 border-b border-gray-100 last:border-b-0"
-                        >
-                          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                            <p className="text-sm font-medium text-gray-900 leading-5">
-                              {inviter
-                                ? `${inviter} t'ha convidat a col·laborar al curs:`
-                                : "Tens una invitació al curs:"}
-                            </p>
-                            <p className="text-sm text-indigo-700 font-semibold mt-1">
-                              {courseLabel}
-                            </p>
-                            {invitation.courseLevel && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                Nivell: {invitation.courseLevel}
+                        const courseLabel =
+                          invitation.courseName ||
+                          `Curs #${invitation.courseId}`;
+                        const inviter = invitation.inviterName;
+
+                        return (
+                          <div
+                            key={invitationId}
+                            className="px-4 py-3 border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                              <p className="text-sm font-medium text-gray-900 leading-5">
+                                {inviter
+                                  ? `${inviter} t'ha convidat a col·laborar al curs:`
+                                  : "Tens una invitació al curs:"}
                               </p>
-                            )}
+                              <p className="text-sm text-indigo-700 font-semibold mt-1">
+                                {courseLabel}
+                              </p>
+                              {invitation.courseLevel && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Nivell: {invitation.courseLevel}
+                                </p>
+                              )}
 
-                            <div className="mt-3 flex gap-2">
-                              <Button
-                                onClick={() => handleAcceptInvitation(invitationId)}
-                                size="sm"
-                                variant="success"
-                                disabled={processingInvitationId === normalizedInvitationId}
-                                className="flex-1"
-                              >
-                                Acceptar
-                              </Button>
-                              <Button
-                                onClick={() => handleDeclineInvitation(invitationId)}
-                                size="sm"
-                                variant="outline"
-                                disabled={processingInvitationId === normalizedInvitationId}
-                                className="flex-1"
-                              >
-                                Declinar
-                              </Button>
+                              <div className="mt-3 flex gap-2">
+                                <Button
+                                  onClick={() =>
+                                    handleAcceptInvitation(invitationId)
+                                  }
+                                  size="sm"
+                                  variant="success"
+                                  disabled={
+                                    processingInvitationId ===
+                                    normalizedInvitationId
+                                  }
+                                  className="flex-1"
+                                >
+                                  Acceptar
+                                </Button>
+                                <Button
+                                  onClick={() =>
+                                    handleDeclineInvitation(invitationId)
+                                  }
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={
+                                    processingInvitationId ===
+                                    normalizedInvitationId
+                                  }
+                                  className="flex-1"
+                                >
+                                  Declinar
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })
-                  )}
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -281,7 +284,10 @@ function NavBar() {
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="ghost" className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2">
+              <Button
+                variant="ghost"
+                className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+              >
                 <svg
                   className="w-4 h-4"
                   fill="none"
@@ -302,7 +308,8 @@ function NavBar() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Tancar sessio?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Es tancara la teva sessio actual i hauràs de tornar a iniciar sessio.
+                  Es tancara la teva sessio actual i hauràs de tornar a iniciar
+                  sessio.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

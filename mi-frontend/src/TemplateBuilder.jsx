@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import DraggableBlock from "./components/DraggableBlock";
 import CategorySelector from "./components/CategorySelector";
@@ -44,6 +44,28 @@ function TemplateBuilder() {
     "Observacions finals",
   );
   const [conclusionsGuidance, setConclusionsGuidance] = useState("");
+
+  const selectedItemsUsage = useMemo(() => {
+    const usageMap = {};
+
+    elements.forEach((element) => {
+      if (element.type !== "header" || !Array.isArray(element.items)) {
+        return;
+      }
+
+      element.items.forEach((item) => {
+        const normalizedText = String(item?.content || "")
+          .trim()
+          .toLowerCase();
+
+        if (!normalizedText) return;
+
+        usageMap[normalizedText] = (usageMap[normalizedText] || 0) + 1;
+      });
+    });
+
+    return usageMap;
+  }, [elements]);
 
   const loadCategories = async () => {
     if (!courseId) return;
@@ -465,7 +487,35 @@ function TemplateBuilder() {
     }
   };
 
-  const goBack = () => {
+  const saveTemplateSilentlyBeforeBack = async () => {
+    if (!courseId || !templateName.trim() || elements.length === 0) {
+      return;
+    }
+
+    const template = buildTemplateData();
+
+    try {
+      const url = templateId
+        ? `/courses/${courseId}/templates/${templateId}`
+        : `/courses/${courseId}/templates`;
+      const method = templateId ? "PUT" : "POST";
+
+      await fetchWithAuth(url, {
+        method,
+        body: JSON.stringify({
+          name: template.name,
+          sections: template.sections,
+          conclusions: template.conclusions,
+        }),
+      });
+    } catch (error) {
+      console.error("Error auto-guardant plantilla abans de sortir:", error);
+    }
+  };
+
+  const goBack = async () => {
+    await saveTemplateSilentlyBeforeBack();
+
     if (courseId) {
       navigate(`/cursos/${courseId}`);
       return;
@@ -787,6 +837,7 @@ function TemplateBuilder() {
               <CategorySelector
                 categoriesData={categoriesData}
                 availableColors={availableColors}
+                itemUsageMap={selectedItemsUsage}
                 onSelectItem={handleSelectItem}
               />
             </div>

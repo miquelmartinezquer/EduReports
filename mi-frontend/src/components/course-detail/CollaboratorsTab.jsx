@@ -10,7 +10,7 @@ function CollaboratorsTab({
   onDeletePendingInvitation,
 }) {
   return (
-    <div>
+    <div className="pb-8">
       <div className="mb-6">
         <Button
           onClick={onAddCollaborator}

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import fetchWithAuth from "../../utils/fetchWithAuth";
 
-function TemplatesTab({ courseId, courseName }) {
+function TemplatesTab({ courseId, courseName, onTemplatesCountChange }) {
   const navigate = useNavigate();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -43,6 +43,7 @@ function TemplatesTab({ courseId, courseName }) {
   const loadTemplates = async () => {
     if (!courseId) {
       setTemplates([]);
+      onTemplatesCountChange?.(0);
       return;
     }
 
@@ -50,11 +51,14 @@ function TemplatesTab({ courseId, courseName }) {
       setLoading(true);
       setError("");
       const data = await fetchWithAuth(`/courses/${courseId}/templates`);
-      setTemplates(Array.isArray(data) ? data : []);
+      const nextTemplates = Array.isArray(data) ? data : [];
+      setTemplates(nextTemplates);
+      onTemplatesCountChange?.(nextTemplates.length);
     } catch (loadError) {
       console.error("Error carregant plantilles:", loadError);
       setError(loadError.message || "No s'han pogut carregar les plantilles");
       setTemplates([]);
+      onTemplatesCountChange?.(0);
     } finally {
       setLoading(false);
     }
@@ -97,7 +101,11 @@ function TemplatesTab({ courseId, courseName }) {
         },
       );
 
-      setTemplates((prev) => prev.filter((t) => t.id !== templateToDelete.id));
+      setTemplates((prev) => {
+        const nextTemplates = prev.filter((t) => t.id !== templateToDelete.id);
+        onTemplatesCountChange?.(nextTemplates.length);
+        return nextTemplates;
+      });
       setTemplateToDelete(null);
     } catch (deleteError) {
       console.error("Error eliminant plantilla:", deleteError);

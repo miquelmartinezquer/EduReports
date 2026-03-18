@@ -68,6 +68,7 @@ function CourseDetail() {
   const [studentReports, setStudentReports] = useState({}); // { studentId: report }
   const [studentDrafts, setStudentDrafts] = useState({}); // { studentId: draft }
   const [pendingInvitations, setPendingInvitations] = useState([]);
+  const [templatesCount, setTemplatesCount] = useState(0);
   const [availableColors, setAvailableColors] = useState([
     { key: "purple", name: "Porpra" },
     { key: "blue", name: "Blau" },
@@ -109,13 +110,13 @@ function CourseDetail() {
   const [newStudent, setNewStudent] = useState({
     name: "",
     lastName: "",
-    gender: "no_indicat",
+    gender: "nen",
     age: "",
   });
   const [editingStudent, setEditingStudent] = useState({
     name: "",
     lastName: "",
-    gender: "no_indicat",
+    gender: "nen",
     age: "",
   });
 
@@ -163,6 +164,7 @@ function CourseDetail() {
     loadCategories();
     loadAvailableColors();
     loadPendingInvitations();
+    loadTemplatesCount();
   }, [courseId]);
 
   useEffect(() => {
@@ -338,6 +340,16 @@ function CourseDetail() {
     }
   };
 
+  const loadTemplatesCount = async () => {
+    try {
+      const data = await fetchWithAuth(`/courses/${courseId}/templates`);
+      setTemplatesCount(Array.isArray(data) ? data.length : 0);
+    } catch (error) {
+      console.error("Error carregant recompte de plantilles:", error);
+      setTemplatesCount(0);
+    }
+  };
+
   const deletePendingInvitation = async (invitationId) => {
     try {
       const data = await fetchWithAuth(`/invitations/${invitationId}`, {
@@ -485,8 +497,6 @@ function CourseDetail() {
     const map = {
       nen: "Nen",
       nena: "Nena",
-      altre: "Altre",
-      no_indicat: "No indicat",
     };
     return map[value] || "No indicat";
   };
@@ -524,7 +534,7 @@ function CourseDetail() {
           setNewStudent({
             name: "",
             lastName: "",
-            gender: "no_indicat",
+            gender: "nen",
             age: "",
           });
           setShowAddStudentModal(false);
@@ -569,7 +579,7 @@ function CourseDetail() {
     setEditingStudent({
       name: student.name || "",
       lastName: student.lastName || "",
-      gender: student.gender || "no_indicat",
+      gender: student.gender === "nena" ? "nena" : "nen",
       age: student.age ? String(student.age) : "",
     });
     setShowEditStudentModal(true);
@@ -616,7 +626,7 @@ function CourseDetail() {
         setEditingStudent({
           name: "",
           lastName: "",
-          gender: "no_indicat",
+          gender: "nen",
           age: "",
         });
         toast.success("Alumne actualitzat correctament");
@@ -1098,11 +1108,13 @@ function CourseDetail() {
           onChangeTab={setActiveTab}
           course={course}
           totalItemsCount={totalItemsCount}
+          templatesCount={templatesCount}
         />
 
         {/* Content */}
         {activeTab === "classes" && (
           <ClassesTab
+            courseId={courseId}
             classItems={course.classes}
             deleteClassId={deleteClassId}
             deleteClassNameInput={deleteClassNameInput}
@@ -1163,7 +1175,11 @@ function CourseDetail() {
         )}
 
         {activeTab === "templates" && (
-          <TemplatesTab courseId={courseId} courseName={course.name} />
+          <TemplatesTab
+            courseId={courseId}
+            courseName={course.name}
+            onTemplatesCountChange={setTemplatesCount}
+          />
         )}
       </div>
 
@@ -1475,7 +1491,7 @@ function CourseDetail() {
             setNewStudent({
               name: "",
               lastName: "",
-              gender: "no_indicat",
+              gender: "nen",
               age: "",
             });
             setSelectedClassId(null);
@@ -1532,10 +1548,8 @@ function CourseDetail() {
                 }
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               >
-                <option value="no_indicat">No indicat</option>
                 <option value="nen">Nen</option>
                 <option value="nena">Nena</option>
-                <option value="altre">Altre</option>
               </select>
             </div>
             <div>
@@ -1570,7 +1584,7 @@ function CourseDetail() {
                 setNewStudent({
                   name: "",
                   lastName: "",
-                  gender: "no_indicat",
+                  gender: "nen",
                   age: "",
                 });
                 setSelectedClassId(null);
@@ -1602,7 +1616,7 @@ function CourseDetail() {
             setEditingStudent({
               name: "",
               lastName: "",
-              gender: "no_indicat",
+              gender: "nen",
               age: "",
             });
           }
@@ -1664,10 +1678,8 @@ function CourseDetail() {
                 }
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               >
-                <option value="no_indicat">No indicat</option>
                 <option value="nen">Nen</option>
                 <option value="nena">Nena</option>
-                <option value="altre">Altre</option>
               </select>
             </div>
             <div>
@@ -1704,7 +1716,7 @@ function CourseDetail() {
                 setEditingStudent({
                   name: "",
                   lastName: "",
-                  gender: "no_indicat",
+                  gender: "nen",
                   age: "",
                 });
               }}

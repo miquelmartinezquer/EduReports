@@ -119,16 +119,17 @@ const getReportById = async(reportId) => {
     return rows[0] || null;
 };
 
-const getDraftByStudentAndUser = async(studentId, userId) => {
+const getDraftByStudent = async(studentId) => {
     const rows = await query(
         `SELECT id, student_id AS studentId, course_id AS courseId, user_id AS userId,
                 elements_json AS elements, student_name AS studentName,
                 course_label AS course, language, element_counter AS elementCounter,
                 last_modified AS lastModified
          FROM report_drafts
-         WHERE student_id = ? AND user_id = ?
+         WHERE student_id = ?
+         ORDER BY last_modified DESC, id DESC
          LIMIT 1`,
-        [studentId, userId],
+        [studentId],
     );
 
     if (!rows[0]) return null;
@@ -234,7 +235,7 @@ module.exports = {
     getReportsByStudent,
     getLatestReportByStudent,
     getReportById,
-    getDraftByStudentAndUser,
+    getDraftByStudent,
     getCourseCategories,
     getAvailableColors,
     getInvitationsByUser,

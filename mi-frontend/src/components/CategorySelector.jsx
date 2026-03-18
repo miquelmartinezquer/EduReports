@@ -2,8 +2,20 @@ import React, { useState } from "react";
 import { COLOR_CLASSES, DEFAULT_COLOR } from "../services/colorHelper";
 import { Button } from "@/components/ui/button";
 
+const normalizeItemKey = (text) =>
+  String(text || "")
+    .trim()
+    .toLowerCase();
+
 // Component per mostrar una categoria
-function CategoryButton({ categoryKey, category, colorConfig, onClick }) {
+function CategoryButton({
+  categoryKey,
+  category,
+  colorConfig,
+  onClick,
+  usedItemsCount,
+  usedOccurrencesCount,
+}) {
   return (
     <Button
       onClick={() => onClick(categoryKey)}
@@ -19,6 +31,15 @@ function CategoryButton({ categoryKey, category, colorConfig, onClick }) {
           <p className="text-sm text-gray-500">
             {category.items.length} items disponibles
           </p>
+          {usedItemsCount > 0 && (
+            <p className="text-xs text-indigo-600 mt-1 font-medium">
+              {usedItemsCount}{" "}
+              {usedItemsCount === 1 ? "item utilitzat" : "items utilitzats"}
+              {" · "}
+              {usedOccurrencesCount}{" "}
+              {usedOccurrencesCount === 1 ? "cop" : "cops"}
+            </p>
+          )}
         </div>
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -36,14 +57,31 @@ function CategoryButton({ categoryKey, category, colorConfig, onClick }) {
 }
 
 // Component per mostrar un item seleccionable
-function ItemButton({ text, onClick }) {
+function ItemButton({ text, onClick, usageCount }) {
+  const isUsed = usageCount > 0;
+
   return (
     <Button
       onClick={onClick}
       variant="outline"
-      className="h-auto w-full justify-start px-3 py-2.5 border border-gray-200 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition-colors text-left"
+      className={`h-auto w-full justify-start px-3 py-2.5 border rounded-lg transition-colors text-left ${
+        isUsed
+          ? "border-emerald-300 bg-emerald-50 hover:border-emerald-400 hover:bg-emerald-100"
+          : "border-gray-200 hover:border-indigo-400 hover:bg-indigo-50"
+      }`}
     >
-      <p className="text-gray-700">{text}</p>
+      <div className="w-full flex items-start justify-between gap-3">
+        <p
+          className={`flex-1 ${isUsed ? "text-emerald-900" : "text-gray-700"}`}
+        >
+          {text}
+        </p>
+        {isUsed && (
+          <span className="shrink-0 text-xs font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full px-2 py-0.5">
+            {usageCount} {usageCount === 1 ? "cop" : "cops"}
+          </span>
+        )}
+      </div>
     </Button>
   );
 }
@@ -79,6 +117,7 @@ function BackButton({ onClick, children }) {
 function CategorySelector({
   categoriesData,
   availableColors = [],
+  itemUsageMap = {},
   onSelectItem,
 }) {
   const [view, setView] = useState("categories"); // 'categories', 'items'
@@ -112,15 +151,35 @@ function CategorySelector({
           </p>
         </div>
         <div className="space-y-3">
-          {Object.entries(categoriesData).map(([key, category]) => (
-            <CategoryButton
-              key={key}
-              categoryKey={key}
-              category={category}
-              colorConfig={COLOR_CLASSES[category.color] || DEFAULT_COLOR}
-              onClick={handleCategoryClick}
-            />
-          ))}
+          {Object.entries(categoriesData).map(([key, category]) =>
+            (() => {
+              const usageByItem = Array.isArray(category.items)
+                ? category.items.map(
+                    (itemText) => itemUsageMap[normalizeItemKey(itemText)] || 0,
+                  )
+                : [];
+
+              const usedItemsCount = usageByItem.filter(
+                (count) => count > 0,
+              ).length;
+              const usedOccurrencesCount = usageByItem.reduce(
+                (acc, count) => acc + count,
+                0,
+              );
+
+              return (
+                <CategoryButton
+                  key={key}
+                  categoryKey={key}
+                  category={category}
+                  colorConfig={COLOR_CLASSES[category.color] || DEFAULT_COLOR}
+                  usedItemsCount={usedItemsCount}
+                  usedOccurrencesCount={usedOccurrencesCount}
+                  onClick={handleCategoryClick}
+                />
+              );
+            })(),
+          )}
         </div>
       </div>
     );
@@ -143,6 +202,10 @@ function CategorySelector({
           <p className="text-sm text-gray-500">
             Selecciona l'item que vols afegir al teu informe:
           </p>
+          <p className="text-xs text-emerald-700 mt-1">
+            Els items ja utilitzats apareixen marcats en verd amb el nombre de
+            cops.
+          </p>
         </div>
 
         <div className="space-y-2">
@@ -150,6 +213,7 @@ function CategorySelector({
             <ItemButton
               key={index}
               text={itemText}
+              usageCount={itemUsageMap[normalizeItemKey(itemText)] || 0}
               onClick={() => handleItemSelect(selectedCategory, index)}
             />
           ))}

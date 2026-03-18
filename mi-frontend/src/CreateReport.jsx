@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import DraggableBlock from "./components/DraggableBlock";
 import CategorySelector from "./components/CategorySelector";
@@ -61,6 +61,28 @@ function CreateReport() {
   );
   const [course, setCourse] = useState(searchParams.get("courseName") || "I3");
   const [language, setLanguage] = useState("Català");
+
+  const selectedItemsUsage = useMemo(() => {
+    const usageMap = {};
+
+    elements.forEach((element) => {
+      if (element.type !== "header" || !Array.isArray(element.items)) {
+        return;
+      }
+
+      element.items.forEach((item) => {
+        const normalizedText = String(item?.content || "")
+          .trim()
+          .toLowerCase();
+
+        if (!normalizedText) return;
+
+        usageMap[normalizedText] = (usageMap[normalizedText] || 0) + 1;
+      });
+    });
+
+    return usageMap;
+  }, [elements]);
 
   const getNameInitialType = (name) => {
     const firstLetter = String(name || "")
@@ -758,7 +780,11 @@ function CreateReport() {
     setShowDeleteReportModal(false);
   };
 
-  const goBackToCourse = () => {
+  const goBackToCourse = async ({ shouldSave = true } = {}) => {
+    if (shouldSave) {
+      await saveProgressToBackend(true);
+    }
+
     navigate(courseId ? `/cursos/${courseId}` : "/");
   };
 
@@ -772,7 +798,7 @@ function CreateReport() {
         });
       }
 
-      goBackToCourse();
+      await goBackToCourse({ shouldSave: false });
     } catch (error) {
       // Si no hi ha esborrany, igualment tornem al curs.
       if (
@@ -780,7 +806,7 @@ function CreateReport() {
           .toLowerCase()
           .includes("no s'ha trobat cap esborrany")
       ) {
-        goBackToCourse();
+        await goBackToCourse({ shouldSave: false });
         return;
       }
 
@@ -811,7 +837,7 @@ function CreateReport() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <Button
-              onClick={() => navigate(courseId ? `/cursos/${courseId}` : "/")}
+              onClick={goBackToCourse}
               variant="ghost"
               className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
             >
@@ -828,7 +854,7 @@ function CreateReport() {
                   d="M15 19l-7-7 7-7"
                 />
               </svg>
-              Tornar als Cursos
+              Tornar al Curs
             </Button>
           </div>
           <div className="text-center">
@@ -1343,6 +1369,7 @@ function CreateReport() {
               <CategorySelector
                 categoriesData={categoriesData}
                 availableColors={availableColors}
+                itemUsageMap={selectedItemsUsage}
                 onSelectItem={handleSelectItem}
               />
             </div>

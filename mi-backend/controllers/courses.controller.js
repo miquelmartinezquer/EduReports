@@ -411,7 +411,7 @@ const addStudent = async(req, res) => {
         const value = String(gender || '').trim().toLowerCase();
         if (!value) return null;
 
-        const allowedValues = ['nen', 'nena', 'altre', 'no_indicat'];
+        const allowedValues = ['nen', 'nena'];
         if (!allowedValues.includes(value)) {
             return undefined;
         }
@@ -459,7 +459,7 @@ const updateStudent = async(req, res) => {
         const value = String(gender || '').trim().toLowerCase();
         if (!value) return null;
 
-        const allowedValues = ['nen', 'nena', 'altre', 'no_indicat'];
+        const allowedValues = ['nen', 'nena'];
         if (!allowedValues.includes(value)) {
             return undefined;
         }

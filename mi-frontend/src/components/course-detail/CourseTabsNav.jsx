@@ -1,6 +1,12 @@
 import { Button } from "@/components/ui/button";
 
-function CourseTabsNav({ activeTab, onChangeTab, course, totalItemsCount }) {
+function CourseTabsNav({
+  activeTab,
+  onChangeTab,
+  course,
+  totalItemsCount,
+  templatesCount = 0,
+}) {
   return (
     <div className="mb-6 bg-white rounded-lg shadow">
       <div className="flex border-b">
@@ -46,7 +52,7 @@ function CourseTabsNav({ activeTab, onChangeTab, course, totalItemsCount }) {
               : "text-gray-600 hover:text-gray-900"
           }`}
         >
-          Plantilles
+          Plantilles ({templatesCount})
         </Button>
       </div>
     </div>

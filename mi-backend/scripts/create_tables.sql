@@ -156,7 +156,7 @@ CREATE TABLE report_drafts (
   element_counter INT NOT NULL DEFAULT 0,
   last_modified DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_report_drafts_student_user (student_id, user_id),
+  UNIQUE KEY uq_report_drafts_student (student_id),
   KEY idx_report_drafts_course_id (course_id),
   KEY idx_report_drafts_user_id (user_id),
   CONSTRAINT fk_report_drafts_student
