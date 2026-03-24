@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import fetchWithAuth from "./utils/fetchWithAuth";
 import NavBar from "./components/NavBar";
+import DEBUG_MODE from "./config/debug";
 
 // Evita dobles execucions en React StrictMode (dev) per la mateixa generació.
 const inFlightGenerationKeys = new Set();
@@ -201,20 +202,22 @@ function GeneratingReport() {
                 </div>
               </div>
 
-              <div className="border border-gray-200 rounded-lg overflow-hidden opacity-50">
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                  <h4 className="font-semibold text-gray-700">
-                    Estructura de l'informe
-                  </h4>
-                </div>
-                <div className="p-4">
-                  <div className="bg-slate-900 rounded-lg p-4">
-                    <pre className="text-green-400 text-sm font-mono whitespace-pre-wrap">
-                      {JSON.stringify(reportData, null, 2)}
-                    </pre>
+              {DEBUG_MODE && (
+                <div className="border border-gray-200 rounded-lg overflow-hidden opacity-50">
+                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                    <h4 className="font-semibold text-gray-700">
+                      Estructura de l'informe
+                    </h4>
+                  </div>
+                  <div className="p-4">
+                    <div className="bg-slate-900 rounded-lg p-4">
+                      <pre className="text-green-400 text-sm font-mono whitespace-pre-wrap">
+                        {JSON.stringify(reportData, null, 2)}
+                      </pre>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-12">

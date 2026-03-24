@@ -44,6 +44,7 @@ function TemplateBuilder() {
     "Observacions finals",
   );
   const [conclusionsGuidance, setConclusionsGuidance] = useState("");
+  const [expandedHeaderId, setExpandedHeaderId] = useState(null);
 
   const selectedItemsUsage = useMemo(() => {
     const usageMap = {};
@@ -173,6 +174,12 @@ function TemplateBuilder() {
 
     setElements([...elements, newElement]);
     setElementCounter(newCounter);
+    // Expandir automàticament el nou apartat
+    setExpandedHeaderId(`element-${newCounter}`);
+  };
+
+  const toggleHeader = (headerId) => {
+    setExpandedHeaderId((prev) => (prev === headerId ? null : headerId));
   };
 
   const addItem = (headerId = null) => {
@@ -260,6 +267,16 @@ function TemplateBuilder() {
       return;
     }
 
+    // Comprovar si l'item ja està utilitzat
+    const normalizedText = String(itemText || "")
+      .trim()
+      .toLowerCase();
+    const usageCount = selectedItemsUsage[normalizedText] || 0;
+
+    if (usageCount >= 1) {
+      return; // No afegir si ja està utilitzat
+    }
+
     const newCounter = elementCounter + 1;
     const newItem = {
       id: `item-${newCounter}`,
@@ -273,7 +290,30 @@ function TemplateBuilder() {
 
     setElements(updatedElements);
     setElementCounter(newCounter);
-    closeItemModal();
+  };
+
+  const handleRemoveItemByContent = (itemText) => {
+    const normalizedText = String(itemText || "")
+      .trim()
+      .toLowerCase();
+
+    const updatedElements = elements.map((element) => {
+      if (element.type !== "header" || !Array.isArray(element.items)) {
+        return element;
+      }
+
+      return {
+        ...element,
+        items: element.items.filter((item) => {
+          const itemNormalized = String(item?.content || "")
+            .trim()
+            .toLowerCase();
+          return itemNormalized !== normalizedText;
+        }),
+      };
+    });
+
+    setElements(updatedElements);
   };
 
   const removeElement = (headerId, itemId = null) => {
@@ -458,6 +498,18 @@ function TemplateBuilder() {
       return;
     }
 
+    // Validar que tots els apartats tinguin nom
+    const sectionsWithoutName = elements.filter(
+      (el) => el.type === "header" && !el.content?.trim(),
+    );
+
+    if (sectionsWithoutName.length > 0) {
+      toast.error(
+        `Hi ha ${sectionsWithoutName.length} ${sectionsWithoutName.length === 1 ? "apartat sense nom" : "apartats sense nom"}. Afegeix un títol a tots els apartats.`,
+      );
+      return;
+    }
+
     const template = buildTemplateData();
 
     try {
@@ -527,7 +579,7 @@ function TemplateBuilder() {
   return (
     <div className="min-h-screen bg-gray-100">
       <NavBar />
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto pb-8">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <Button
@@ -700,7 +752,7 @@ function TemplateBuilder() {
                     </Button>
                   </div>
                 ) : (
-                  elements.map((element) => (
+                  elements.map((element, idx) => (
                     <div key={element.id} className="space-y-3">
                       <DraggableBlock
                         element={element}
@@ -712,35 +764,50 @@ function TemplateBuilder() {
                           updateElementContent(id, content)
                         }
                         onRemove={(id) => removeElement(id)}
+                        itemCount={element.items?.length || 0}
+                        isExpanded={expandedHeaderId === element.id}
+                        onToggle={() => toggleHeader(element.id)}
+                        sectionNumber={idx + 1}
                       />
 
-                      <div className="ml-8 border-l-2 border-indigo-200 pl-4">
-                        {element.items && element.items.length > 0 && (
-                          <div className="space-y-3 mb-3">
-                            {element.items.map((item) => (
-                              <DraggableBlock
-                                key={item.id}
-                                element={item}
-                                onDragStart={handleDragStart}
-                                onDragEnd={handleDragEnd}
-                                onDragOver={handleDragOver}
-                                onDrop={handleDrop}
-                                onContentChange={(id, content) =>
-                                  updateElementContent(element.id, content, id)
-                                }
-                                onRemove={(id) => removeElement(element.id, id)}
-                              />
-                            ))}
-                          </div>
-                        )}
+                      {/* Items dentro del header - només mostrar si està expandit */}
+                      {expandedHeaderId === element.id && (
+                        <div className="ml-8 border-l-2 border-indigo-200 pl-4">
+                          {element.items && element.items.length > 0 && (
+                            <div className="space-y-3 mb-3">
+                              {element.items.map((item) => (
+                                <DraggableBlock
+                                  key={item.id}
+                                  element={item}
+                                  onDragStart={handleDragStart}
+                                  onDragEnd={handleDragEnd}
+                                  onDragOver={handleDragOver}
+                                  onDrop={handleDrop}
+                                  onContentChange={(id, content) =>
+                                    updateElementContent(
+                                      element.id,
+                                      content,
+                                      id,
+                                    )
+                                  }
+                                  onRemove={(id) =>
+                                    removeElement(element.id, id)
+                                  }
+                                />
+                              ))}
+                            </div>
+                          )}
 
-                        <div className="flex gap-2">
-                          <AddItemButton onClick={() => addItem(element.id)} />
-                          <AddFreeTextButton
-                            onClick={() => addFreeTextBlock(element.id)}
-                          />
+                          <div className="flex gap-2">
+                            <AddItemButton
+                              onClick={() => addItem(element.id)}
+                            />
+                            <AddFreeTextButton
+                              onClick={() => addFreeTextBlock(element.id)}
+                            />
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   ))
                 )}
@@ -839,6 +906,7 @@ function TemplateBuilder() {
                 availableColors={availableColors}
                 itemUsageMap={selectedItemsUsage}
                 onSelectItem={handleSelectItem}
+                onRemoveItem={handleRemoveItemByContent}
               />
             </div>
           </div>

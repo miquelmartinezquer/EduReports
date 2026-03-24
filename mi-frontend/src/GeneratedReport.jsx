@@ -2,6 +2,8 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import NavBar from "./components/NavBar";
 import { Button } from "@/components/ui/button";
+import { debugLog } from "./config/debug";
+import DEBUG_MODE from "./config/debug";
 
 function GeneratedReport() {
   const location = useLocation();
@@ -28,8 +30,8 @@ function GeneratedReport() {
   const handleViewSavedReport = () => {
     if (savedReportId) {
       const url = `/informe/${savedReportId}?studentId=${studentId}&courseId=${courseId}`;
-      console.log("🔗 Navegant a:", url);
-      console.log("savedReportId:", savedReportId);
+      debugLog("🔗 Navegant a:", url);
+      debugLog("savedReportId:", savedReportId);
       navigate(url);
     }
   };
@@ -37,7 +39,7 @@ function GeneratedReport() {
   return (
     <div className="min-h-screen bg-gray-100">
       <NavBar />
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto pb-8">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -129,10 +131,7 @@ function GeneratedReport() {
                       Ja pots accedir a l'informe des del perfil de l'alumne
                     </p>
                   </div>
-                  <Button
-                    onClick={handleViewSavedReport}
-                    variant="success"
-                  >
+                  <Button onClick={handleViewSavedReport} variant="success">
                     Veure Informe
                   </Button>
                 </div>
@@ -183,20 +182,22 @@ function GeneratedReport() {
                 </div>
               )}
 
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                  <h4 className="font-semibold text-gray-700">
-                    Dades originals
-                  </h4>
-                </div>
-                <div className="p-4">
-                  <div className="bg-slate-900 rounded-lg p-4">
-                    <pre className="text-green-400 text-sm font-mono whitespace-pre-wrap">
-                      {JSON.stringify(reportData, null, 2)}
-                    </pre>
+              {DEBUG_MODE && (
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                    <h4 className="font-semibold text-gray-700">
+                      Dades originals
+                    </h4>
+                  </div>
+                  <div className="p-4">
+                    <div className="bg-slate-900 rounded-lg p-4">
+                      <pre className="text-green-400 text-sm font-mono whitespace-pre-wrap">
+                        {JSON.stringify(reportData, null, 2)}
+                      </pre>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex gap-3">
                 <Button variant="brand" className="flex-1 px-4 py-3">
@@ -231,11 +232,7 @@ function GeneratedReport() {
               <p className="text-gray-500 mb-4">
                 Torna a la pàgina principal per crear un nou informe
               </p>
-              <Button
-                onClick={handleBack}
-                variant="brand"
-                className="px-6"
-              >
+              <Button onClick={handleBack} variant="brand" className="px-6">
                 Crear nou informe
               </Button>
             </div>

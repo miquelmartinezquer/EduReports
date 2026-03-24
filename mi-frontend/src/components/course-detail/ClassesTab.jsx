@@ -27,6 +27,7 @@ function ClassesTab({
   onOpenAddStudent,
   studentReports,
   studentDrafts,
+  loadingStudents,
   studentDisplayName,
   genderLabel,
   onOpenEditStudentModal,
@@ -112,7 +113,7 @@ function ClassesTab({
   };
 
   return (
-    <div>
+    <div className="pb-8">
       <div className="mb-6">
         <Button
           onClick={onOpenAddClass}
@@ -328,61 +329,55 @@ function ClassesTab({
                       {classItem.students?.map((student) => {
                         const hasReport = studentReports[student.id];
                         const hasDraft = studentDrafts[student.id];
+                        const isLoading = loadingStudents?.has(student.id);
+
                         return (
                           <div
                             key={student.id}
                             className="flex flex-col p-4 bg-gray-50 rounded-lg border border-gray-200"
                           >
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex-1">
-                                <p className="font-medium text-gray-900">
-                                  {studentDisplayName(student) || student.name}
-                                </p>
-                                <div className="flex items-center gap-2">
-                                  {student.gender && (
-                                    <p className="text-xs text-gray-600">
-                                      {genderLabel(student.gender)}
-                                    </p>
-                                  )}
-                                  {student.age && (
-                                    <p className="text-xs text-gray-600">
-                                      {student.age} anys
-                                    </p>
-                                  )}
+                            {isLoading ? (
+                              // Indicador de càrrega
+                              <div className="flex items-center justify-center py-8">
+                                <div className="flex flex-col items-center gap-2">
+                                  <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                                  <p className="text-xs text-gray-500">
+                                    Carregant dades...
+                                  </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  className="text-gray-400 hover:text-indigo-600 transition-colors"
-                                  onClick={() =>
-                                    onOpenEditStudentModal(
-                                      classItem.id,
-                                      student,
-                                    )
-                                  }
-                                >
-                                  <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                    />
-                                  </svg>
-                                </Button>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
+                            ) : (
+                              <>
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex-1">
+                                    <p className="font-medium text-gray-900">
+                                      {studentDisplayName(student) ||
+                                        student.name}
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      {student.gender && (
+                                        <p className="text-xs text-gray-600">
+                                          {genderLabel(student.gender)}
+                                        </p>
+                                      )}
+                                      {student.age && (
+                                        <p className="text-xs text-gray-600">
+                                          {student.age} anys
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1">
                                     <Button
                                       variant="ghost"
                                       size="icon-sm"
-                                      className="text-gray-400 hover:text-red-600 transition-colors"
+                                      className="text-gray-400 hover:text-indigo-600 transition-colors"
+                                      onClick={() =>
+                                        onOpenEditStudentModal(
+                                          classItem.id,
+                                          student,
+                                        )
+                                      }
                                     >
                                       <svg
                                         className="w-4 h-4"
@@ -394,126 +389,152 @@ function ClassesTab({
                                           strokeLinecap="round"
                                           strokeLinejoin="round"
                                           strokeWidth={2}
-                                          d="M6 18L18 6M6 6l12 12"
+                                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                                         />
                                       </svg>
                                     </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Eliminar alumne?
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        S'eliminara l'alumne{" "}
-                                        <strong>
-                                          {studentDisplayName(student) ||
-                                            student.name}
-                                        </strong>{" "}
-                                        d'aquesta classe.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel·lar
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        variant="destructive"
-                                        onClick={() =>
-                                          onDeleteStudent(
-                                            classItem.id,
-                                            student.id,
-                                          )
-                                        }
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          className="text-gray-400 hover:text-red-600 transition-colors"
+                                        >
+                                          <svg
+                                            className="w-4 h-4"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={2}
+                                              d="M6 18L18 6M6 6l12 12"
+                                            />
+                                          </svg>
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>
+                                            Eliminar alumne?
+                                          </AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            S'eliminara l'alumne{" "}
+                                            <strong>
+                                              {studentDisplayName(student) ||
+                                                student.name}
+                                            </strong>{" "}
+                                            d'aquesta classe.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>
+                                            Cancel·lar
+                                          </AlertDialogCancel>
+                                          <AlertDialogAction
+                                            variant="destructive"
+                                            onClick={() =>
+                                              onDeleteStudent(
+                                                classItem.id,
+                                                student.id,
+                                              )
+                                            }
+                                          >
+                                            Si, eliminar
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  {hasReport ? (
+                                    <Button
+                                      onClick={() =>
+                                        onOpenViewReport(
+                                          hasReport.id,
+                                          student.id,
+                                        )
+                                      }
+                                      variant="success"
+                                      size="sm"
+                                      className="flex-1 flex items-center justify-center gap-1"
+                                    >
+                                      <svg
+                                        className="w-4 h-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
                                       >
-                                        Si, eliminar
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              {hasReport ? (
-                                <Button
-                                  onClick={() =>
-                                    onOpenViewReport(hasReport.id, student.id)
-                                  }
-                                  variant="success"
-                                  size="sm"
-                                  className="flex-1 flex items-center justify-center gap-1"
-                                >
-                                  <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                                    />
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                                    />
-                                  </svg>
-                                  Veure Informe
-                                </Button>
-                              ) : hasDraft ? (
-                                <Button
-                                  onClick={() =>
-                                    onOpenCreateOrContinueReport(student)
-                                  }
-                                  variant="warning"
-                                  size="sm"
-                                  className="flex-1 flex items-center justify-center gap-1"
-                                >
-                                  <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                    />
-                                  </svg>
-                                  Seguir Editant
-                                </Button>
-                              ) : (
-                                <Button
-                                  onClick={() =>
-                                    onOpenCreateOrContinueReport(student)
-                                  }
-                                  variant="brand"
-                                  size="sm"
-                                  className="flex-1 flex items-center justify-center gap-1"
-                                >
-                                  <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M12 4v16m8-8H4"
-                                    />
-                                  </svg>
-                                  Crear Informe
-                                </Button>
-                              )}
-                            </div>
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                        />
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                        />
+                                      </svg>
+                                      Veure Informe
+                                    </Button>
+                                  ) : hasDraft ? (
+                                    <Button
+                                      onClick={() =>
+                                        onOpenCreateOrContinueReport(student)
+                                      }
+                                      variant="warning"
+                                      size="sm"
+                                      className="flex-1 flex items-center justify-center gap-1"
+                                    >
+                                      <svg
+                                        className="w-4 h-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                        />
+                                      </svg>
+                                      Seguir Editant
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      onClick={() =>
+                                        onOpenCreateOrContinueReport(student)
+                                      }
+                                      variant="brand"
+                                      size="sm"
+                                      className="flex-1 flex items-center justify-center gap-1"
+                                    >
+                                      <svg
+                                        className="w-4 h-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M12 4v16m8-8H4"
+                                        />
+                                      </svg>
+                                      Crear Informe
+                                    </Button>
+                                  )}
+                                </div>
+                              </>
+                            )}
                           </div>
                         );
                       })}

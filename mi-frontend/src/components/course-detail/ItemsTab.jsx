@@ -20,7 +20,7 @@ function ItemsTab({
   };
 
   return (
-    <div>
+    <div className="pb-8">
       <div className="mb-6 flex items-center gap-3">
         <ExpandableActionButton
           onClick={onOpenCreateCategoryModal}

@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import fetchWithAuth from "./utils/fetchWithAuth";
 import NavBar from "./components/NavBar";
 import { Button } from "@/components/ui/button";
+import { debugLog } from "./config/debug";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,10 +45,10 @@ function ReportView() {
   const loadReport = async () => {
     try {
       setLoading(true);
-      console.log("📄 Carregant informe amb reportId:", reportId);
-      console.log("URL completa:", `/reports/${reportId}`);
+      debugLog("📄 Carregant informe amb reportId:", reportId);
+      debugLog("URL completa:", `/reports/${reportId}`);
       const data = await fetchWithAuth(`/reports/${reportId}`);
-      console.log("✅ Dades rebudes:", data);
+      debugLog("✅ Dades rebudes:", data);
       setReport(data);
       setEditableTitle(data?.title || "");
       setEditableHtml(data?.htmlContent || "");
@@ -228,7 +229,7 @@ function ReportView() {
   return (
     <div className="min-h-screen bg-gray-100">
       <NavBar />
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto pb-8">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <Button

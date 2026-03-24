@@ -116,7 +116,7 @@ function TemplatesTab({ courseId, courseName, onTemplatesCountChange }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-8">
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
 import fetchWithAuth from "./utils/fetchWithAuth";
 import NavBar from "./components/NavBar";
+import { debugLog } from "./config/debug";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,6 +68,7 @@ function CourseDetail() {
   const [categories, setCategories] = useState({});
   const [studentReports, setStudentReports] = useState({}); // { studentId: report }
   const [studentDrafts, setStudentDrafts] = useState({}); // { studentId: draft }
+  const [loadingStudents, setLoadingStudents] = useState(new Set()); // Set de studentIds que estan carregant
   const [pendingInvitations, setPendingInvitations] = useState([]);
   const [templatesCount, setTemplatesCount] = useState(0);
   const [availableColors, setAvailableColors] = useState([
@@ -668,6 +670,12 @@ function CourseDetail() {
   const loadStudentReports = async () => {
     if (!course?.classes) return;
 
+    // Marcar tots els alumnes com a carregant
+    const allStudentIds = course.classes.flatMap((classItem) =>
+      (classItem.students || []).map((s) => s.id),
+    );
+    setLoadingStudents(new Set(allStudentIds));
+
     const reportsMap = {};
     for (const classItem of course.classes) {
       for (const student of classItem.students || []) {
@@ -702,7 +710,14 @@ function CourseDetail() {
           }
         } catch (error) {
           // Si no hi ha esborrany (404), no passa res
-          console.log(`No hi ha esborrany per l'alumne ${student.id}`);
+          debugLog(`No hi ha esborrany per l'alumne ${student.id}`);
+        } finally {
+          // Treure l'alumne de la llista de càrrega
+          setLoadingStudents((prev) => {
+            const next = new Set(prev);
+            next.delete(student.id);
+            return next;
+          });
         }
       }
     }
@@ -1131,6 +1146,7 @@ function CourseDetail() {
             }}
             studentReports={studentReports}
             studentDrafts={studentDrafts}
+            loadingStudents={loadingStudents}
             studentDisplayName={studentDisplayName}
             genderLabel={genderLabel}
             onOpenEditStudentModal={openEditStudentModal}

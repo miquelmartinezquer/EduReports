@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import DraggableBlock from "./components/DraggableBlock";
-import CategorySelector from "./components/CategorySelector";
 import CategoryManager from "./components/CategoryManager";
 import AddItemButton from "./components/AddItemButton";
 import AddFreeTextButton from "./components/AddFreeTextButton";
 import AddSectionButton from "./components/AddSectionButton";
 import FinalizeModal from "./components/FinalizeModal";
+import ItemSelectorModal from "./components/ItemSelectorModal";
 import fetchWithAuth from "./utils/fetchWithAuth";
 import NavBar from "./components/NavBar";
+import { debugLog } from "./config/debug";
+import DEBUG_MODE from "./config/debug";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -49,6 +51,7 @@ function CreateReport() {
     "Observacions finals",
   );
   const [conclusionsGuidance, setConclusionsGuidance] = useState("");
+  const [expandedHeaderId, setExpandedHeaderId] = useState(null);
 
   // Dades de l'alumne
   const studentId = searchParams.get("studentId");
@@ -139,12 +142,12 @@ function CreateReport() {
   const loadState = async () => {
     if (!studentId) return false; // No carregar si no hi ha studentId
 
-    console.log("Intentant carregar esborrany per studentId:", studentId);
+    debugLog("Intentant carregar esborrany per studentId:", studentId);
 
     try {
       const draft = await fetchWithAuth(`/drafts/${studentId}`);
 
-      console.log("Esborrany carregat:", draft);
+      debugLog("Esborrany carregat:", draft);
 
       if (draft) {
         // Migrar datos antiguos a la nueva estructura si es necesario
@@ -188,7 +191,7 @@ function CreateReport() {
       return false;
     } catch (error) {
       // Si no hi ha esborrany (404) o error, no passa res
-      console.log(
+      debugLog(
         "No s'ha trobat cap esborrany per aquest alumne:",
         error.message,
       );
@@ -285,7 +288,7 @@ function CreateReport() {
   };
 
   const persistDraft = async (draftData, isSilent = false) => {
-    console.log("Guardant esborrany per studentId:", studentId, draftData);
+    debugLog("Guardant esborrany per studentId:", studentId, draftData);
 
     try {
       const response = await fetchWithAuth(`/drafts/${studentId}`, {
@@ -296,7 +299,7 @@ function CreateReport() {
         body: JSON.stringify(draftData),
       });
 
-      console.log("Esborrany guardat correctament:", response);
+      debugLog("Esborrany guardat correctament:", response);
 
       // Mostrar missatge de confirmació només si no és auto-save
       if (!isSilent) {
@@ -367,7 +370,7 @@ function CreateReport() {
 
     // Debounce: espera 2s després de l'últim canvi per guardar
     const timeoutId = setTimeout(() => {
-      console.log("Auto-guardant esborrany al backend...");
+      debugLog("Auto-guardant esborrany al backend...");
       saveProgressToBackend(true); // true = auto-save silenciós
     }, 2000);
 
@@ -421,6 +424,12 @@ function CreateReport() {
     };
     setElements([...elements, newElement]);
     setElementCounter(newCounter);
+    // Expandir automàticament el nou apartat
+    setExpandedHeaderId(`element-${newCounter}`);
+  };
+
+  const toggleHeader = (headerId) => {
+    setExpandedHeaderId((prev) => (prev === headerId ? null : headerId));
   };
 
   const addItem = (headerId = null) => {
@@ -502,6 +511,19 @@ function CreateReport() {
       return;
     }
 
+    // Normalitzar text per comprovar si ja existeix
+    const normalizedText = String(itemText || "")
+      .trim()
+      .toLowerCase();
+
+    const usageCount = selectedItemsUsage[normalizedText] || 0;
+
+    // No permetre afegir items ja utilitzats
+    if (usageCount >= 1) {
+      return;
+    }
+
+    // Afegir l'item
     const newCounter = elementCounter + 1;
     const newItem = {
       id: `item-${newCounter}`,
@@ -514,7 +536,29 @@ function CreateReport() {
     updatedElements[headerIndex].items.push(newItem);
     setElements(updatedElements);
     setElementCounter(newCounter);
-    closeItemModal();
+    // No tanquem el modal per poder afegir més items
+  };
+
+  const handleRemoveItemByContent = (itemText) => {
+    const normalizedText = String(itemText || "")
+      .trim()
+      .toLowerCase();
+
+    const updatedElements = elements.map((el) => {
+      if (el.type === "header" && Array.isArray(el.items)) {
+        return {
+          ...el,
+          items: el.items.filter((item) => {
+            const itemNormalized = String(item?.content || "")
+              .trim()
+              .toLowerCase();
+            return itemNormalized !== normalizedText;
+          }),
+        };
+      }
+      return el;
+    });
+    setElements(updatedElements);
   };
 
   const removeElement = (headerId, itemId = null) => {
@@ -833,7 +877,7 @@ function CreateReport() {
   return (
     <div className="min-h-screen bg-gray-100">
       <NavBar />
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto pb-8">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <Button
@@ -986,7 +1030,7 @@ function CreateReport() {
                   Estructura de l'Informe
                 </h3>
                 <p className="text-gray-500 text-sm">
-                  Organitza els blocs arrossegant-los. Cada canvi es desa
+                  Organitza els apartats arrossegant-los. Cada canvi es desa
                   automàticament.
                 </p>
               </div>
@@ -1042,7 +1086,7 @@ function CreateReport() {
                       </Button>
                     </div>
                   ) : (
-                    elements.map((element) => {
+                    elements.map((element, idx) => {
                       return (
                         <div key={element.id} className="space-y-3">
                           {/* Header */}
@@ -1056,45 +1100,51 @@ function CreateReport() {
                               updateElementContent(id, content)
                             }
                             onRemove={requestDeleteSection}
+                            itemCount={element.items?.length || 0}
+                            isExpanded={expandedHeaderId === element.id}
+                            onToggle={() => toggleHeader(element.id)}
+                            sectionNumber={idx + 1}
                           />
 
-                          {/* Items dentro del header */}
-                          <div className="ml-8 border-l-2 border-indigo-200 pl-4">
-                            {element.items && element.items.length > 0 && (
-                              <div className="space-y-3 mb-3">
-                                {element.items.map((item) => (
-                                  <DraggableBlock
-                                    key={item.id}
-                                    element={item}
-                                    onDragStart={handleDragStart}
-                                    onDragEnd={handleDragEnd}
-                                    onDragOver={handleDragOver}
-                                    onDrop={handleDrop}
-                                    onContentChange={(id, content) =>
-                                      updateElementContent(
-                                        element.id,
-                                        content,
-                                        id,
-                                      )
-                                    }
-                                    onRemove={(id) =>
-                                      removeElement(element.id, id)
-                                    }
-                                  />
-                                ))}
-                              </div>
-                            )}
+                          {/* Items dentro del header - només mostrar si està expandit */}
+                          {expandedHeaderId === element.id && (
+                            <div className="ml-8 border-l-2 border-indigo-200 pl-4">
+                              {element.items && element.items.length > 0 && (
+                                <div className="space-y-3 mb-3">
+                                  {element.items.map((item) => (
+                                    <DraggableBlock
+                                      key={item.id}
+                                      element={item}
+                                      onDragStart={handleDragStart}
+                                      onDragEnd={handleDragEnd}
+                                      onDragOver={handleDragOver}
+                                      onDrop={handleDrop}
+                                      onContentChange={(id, content) =>
+                                        updateElementContent(
+                                          element.id,
+                                          content,
+                                          id,
+                                        )
+                                      }
+                                      onRemove={(id) =>
+                                        removeElement(element.id, id)
+                                      }
+                                    />
+                                  ))}
+                                </div>
+                              )}
 
-                            {/* Botó per afegir items a aquest apartat */}
-                            <div className="flex gap-2">
-                              <AddItemButton
-                                onClick={() => addItem(element.id)}
-                              />
-                              <AddFreeTextButton
-                                onClick={() => addFreeTextBlock(element.id)}
-                              />
+                              {/* Botó per afegir items a aquest apartat */}
+                              <div className="flex gap-2">
+                                <AddItemButton
+                                  onClick={() => addItem(element.id)}
+                                />
+                                <AddFreeTextButton
+                                  onClick={() => addFreeTextBlock(element.id)}
+                                />
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       );
                     })
@@ -1135,15 +1185,17 @@ function CreateReport() {
                           {saveMessage}
                         </span>
                       )}
-                      <Button
-                        type="button"
-                        onClick={generateReport}
-                        variant="outline"
-                        className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded border border-gray-300 font-medium transition-colors"
-                        title="Debug: Veure JSON"
-                      >
-                        JSON
-                      </Button>
+                      {DEBUG_MODE && (
+                        <Button
+                          type="button"
+                          onClick={generateReport}
+                          variant="outline"
+                          className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded border border-gray-300 font-medium transition-colors"
+                          title="Debug: Veure JSON"
+                        >
+                          JSON
+                        </Button>
+                      )}
                       <Button
                         type="button"
                         onClick={saveProgress}
@@ -1330,52 +1382,27 @@ function CreateReport() {
         </div>
       )}
 
-      {showItemModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden">
-            <div className="flex justify-between items-start p-6 border-b border-gray-200">
-              <div>
-                <h3 className="text-xl font-semibold text-gray-900">
-                  Selecciona un item d'avaluació
-                </h3>
-                <p className="text-gray-500 text-sm mt-1">
-                  Escull d'entre les categories o escriu el teu propi contingut
-                </p>
-              </div>
-              <Button
-                onClick={closeItemModal}
-                variant="ghost"
-                size="icon-sm"
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-5 h-5 text-gray-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </Button>
-            </div>
-
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
-              <CategorySelector
-                categoriesData={categoriesData}
-                availableColors={availableColors}
-                itemUsageMap={selectedItemsUsage}
-                onSelectItem={handleSelectItem}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <ItemSelectorModal
+        isOpen={showItemModal}
+        onClose={closeItemModal}
+        categoriesData={categoriesData}
+        availableColors={availableColors}
+        itemUsageMap={selectedItemsUsage}
+        onSelectItem={handleSelectItem}
+        onRemoveItem={handleRemoveItemByContent}
+        sectionTitle={
+          selectedHeaderId
+            ? elements.find((el) => el.id === selectedHeaderId)?.content ||
+              "Apartat sense títol"
+            : ""
+        }
+        sectionItemCount={
+          selectedHeaderId
+            ? elements.find((el) => el.id === selectedHeaderId)?.items
+                ?.length || 0
+            : 0
+        }
+      />
 
       {showJsonModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">

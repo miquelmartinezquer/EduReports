@@ -7,7 +7,7 @@ function RemoveButton({ handleRemove, params, icon }) {
       variant="ghost"
       size="icon-xs"
       className="text-red-400 hover:text-red-600"
-      title="Eliminar item"
+      title="Eliminar"
     >
       {icon === "cross" ? (
         <svg

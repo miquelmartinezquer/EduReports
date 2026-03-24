@@ -12,6 +12,18 @@ function FinalizeModal({
 }) {
   if (!isOpen) return null;
 
+  const handleGenerate = () => {
+    if (!includeConclusions) {
+      const shouldContinue = window.confirm(
+        "No has activat les observacions finals. Vols generar l'informe igualment?",
+      );
+      if (!shouldContinue) {
+        return;
+      }
+    }
+    onGenerate();
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
@@ -141,6 +153,37 @@ function FinalizeModal({
                 </div>
               ))}
 
+              {!includeConclusions && (
+                <div className="border-2 border-amber-300 rounded-lg p-4 bg-amber-50">
+                  <div className="flex items-start gap-3">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-6 h-6 text-amber-600 shrink-0 mt-0.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
+                    </svg>
+                    <div className="flex-1">
+                      <h5 className="font-semibold text-amber-900 mb-1">
+                        Observacions finals desactivades
+                      </h5>
+                      <p className="text-sm text-amber-800">
+                        No s'inclouran observacions finals a l'informe. Si vols
+                        afegir-les, torna a editar i activa l'opció
+                        "Observacions finals".
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {includeConclusions && (
                 <div className="border border-emerald-200 rounded-lg p-4 bg-emerald-50">
                   <div className="flex items-start gap-3 mb-3">
@@ -191,7 +234,7 @@ function FinalizeModal({
             Tornar a editar
           </button>
           <button
-            onClick={onGenerate}
+            onClick={handleGenerate}
             className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold transition-colors shadow-sm"
           >
             <svg
