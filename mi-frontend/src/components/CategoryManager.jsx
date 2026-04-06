@@ -24,7 +24,7 @@ function CategoryManager({ onClose, onCategoriesUpdated, courseId = null }) {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryColor, setNewCategoryColor] = useState("purple");
 
-  // Estat per afegir item
+  // Estat per afegir rubrica
   const [addingItemTo, setAddingItemTo] = useState(null);
   const [newItemText, setNewItemText] = useState("");
 
@@ -102,7 +102,7 @@ function CategoryManager({ onClose, onCategoriesUpdated, courseId = null }) {
 
   const handleAddItem = async (categoryKey) => {
     if (!newItemText.trim()) {
-      alert("Introdueix el text de l'item");
+      alert("Introdueix el text de la rubrica");
       return;
     }
 
@@ -118,7 +118,7 @@ function CategoryManager({ onClose, onCategoriesUpdated, courseId = null }) {
   };
 
   const handleRemoveItem = async (categoryKey, itemIndex) => {
-    if (!window.confirm("Segur que vols eliminar aquest item?")) return;
+    if (!window.confirm("Segur que vols eliminar aquesta rubrica?")) return;
 
     try {
       await removeItemFromCategory(categoryKey, itemIndex, courseId);
@@ -138,7 +138,7 @@ function CategoryManager({ onClose, onCategoriesUpdated, courseId = null }) {
               Gestionar Categories
             </h3>
             <p className="text-gray-500 text-sm mt-1">
-              Crea, edita i elimina categories i items d'avaluació
+              Crea, edita i elimina categories i rubriques d'avaluacio
             </p>
           </div>
           <button
@@ -265,7 +265,7 @@ function CategoryManager({ onClose, onCategoriesUpdated, courseId = null }) {
                             {category.name}
                           </h4>
                           <p className="text-xs text-gray-500">
-                            Items: {category.items.length}
+                            Rubriques: {category.items.length}
                           </p>
                         </div>
                       </div>
@@ -291,14 +291,14 @@ function CategoryManager({ onClose, onCategoriesUpdated, courseId = null }) {
                         </div>
                       ))}
 
-                      {/* Afegir nou item */}
+                      {/* Afegir nova rubrica */}
                       {addingItemTo === key ? (
                         <div className="flex gap-2 mt-2">
                           <input
                             type="text"
                             value={newItemText}
                             onChange={(e) => setNewItemText(e.target.value)}
-                            placeholder="Text del nou item..."
+                            placeholder="Text de la nova rubrica..."
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
                             autoFocus
                           />
@@ -337,7 +337,7 @@ function CategoryManager({ onClose, onCategoriesUpdated, courseId = null }) {
                               d="M12 4v16m8-8H4"
                             />
                           </svg>
-                          Afegir item
+                          Afegir rubrica
                         </button>
                       )}
                     </div>

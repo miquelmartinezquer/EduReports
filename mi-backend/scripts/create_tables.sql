@@ -15,7 +15,7 @@ DROP TABLE IF EXISTS course_categories;
 DROP TABLE IF EXISTS user_category_items;
 DROP TABLE IF EXISTS user_categories;
 DROP TABLE IF EXISTS available_colors;
-DROP TABLE IF EXISTS report_templates;
+DROP TABLE IF EXISTS evaluation_routes;
 DROP TABLE IF EXISTS report_drafts;
 DROP TABLE IF EXISTS reports;
 DROP TABLE IF EXISTS students;
@@ -122,7 +122,7 @@ CREATE TABLE reports (
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE report_templates (
+CREATE TABLE evaluation_routes (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   course_id INT UNSIGNED NOT NULL,
   user_id INT UNSIGNED NOT NULL,
@@ -131,14 +131,14 @@ CREATE TABLE report_templates (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_report_templates_course_name (course_id, name),
-  KEY idx_report_templates_course_id (course_id),
-  KEY idx_report_templates_user_id (user_id),
-  CONSTRAINT fk_report_templates_course
+  UNIQUE KEY uq_evaluation_routes_course_name (course_id, name),
+  KEY idx_evaluation_routes_course_id (course_id),
+  KEY idx_evaluation_routes_user_id (user_id),
+  CONSTRAINT fk_evaluation_routes_course
     FOREIGN KEY (course_id) REFERENCES courses(id)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT fk_report_templates_user
+  CONSTRAINT fk_evaluation_routes_user
     FOREIGN KEY (user_id) REFERENCES users(id)
     ON DELETE CASCADE
     ON UPDATE CASCADE
@@ -229,6 +229,7 @@ CREATE TABLE user_category_items (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_category_id INT UNSIGNED NOT NULL,
   item_text TEXT NOT NULL,
+  response_options_json LONGTEXT NULL,
   sort_order INT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   KEY idx_user_category_items_category_id (user_category_id),

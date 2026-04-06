@@ -5,7 +5,7 @@ import Login from "./Login";
 import MyCourses from "./MyCourses";
 import CourseDetail from "./CourseDetail";
 import CreateReport from "./CreateReport";
-import TemplateBuilder from "./TemplateBuilder";
+import EvaluationRouteBuilder from "./EvaluationRouteBuilder";
 import GeneratingReport from "./GeneratingReport";
 import GeneratedReport from "./GeneratedReport";
 import ReportView from "./ReportView";
@@ -41,10 +41,10 @@ function App() {
             }
           />
           <Route
-            path="/crear-plantilla"
+            path="/crear-ruta-avaluacio"
             element={
               <ProtectedRoute>
-                <TemplateBuilder />
+                <EvaluationRouteBuilder />
               </ProtectedRoute>
             }
           />

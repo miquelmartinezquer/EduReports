@@ -7,6 +7,33 @@ const normalizeItemKey = (text) =>
     .trim()
     .toLowerCase();
 
+const getItemText = (item) => {
+  if (typeof item === "string") return item;
+  if (item && typeof item === "object") {
+    return String(item.text || item.content || "");
+  }
+  return "";
+};
+
+const getItemVariants = (category, itemIndex, item) => {
+  if (
+    Array.isArray(category?.itemVariants) &&
+    Array.isArray(category.itemVariants[itemIndex])
+  ) {
+    return category.itemVariants[itemIndex]
+      .map((v) => String(v || "").trim())
+      .filter(Boolean);
+  }
+
+  if (item && typeof item === "object" && Array.isArray(item.responseOptions)) {
+    return item.responseOptions
+      .map((v) => String(v || "").trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
 // Component per mostrar una categoria
 function CategoryButton({
   categoryKey,
@@ -29,12 +56,14 @@ function CategoryButton({
         <div className="flex-1">
           <h4 className="font-semibold text-gray-900">{category.name}</h4>
           <p className="text-sm text-gray-500">
-            {category.items.length} items disponibles
+            {category.items.length} rubriques disponibles
           </p>
           {usedItemsCount > 0 && (
             <p className="text-xs text-indigo-600 mt-1 font-medium">
               {usedItemsCount}{" "}
-              {usedItemsCount === 1 ? "item utilitzat" : "items utilitzats"}
+              {usedItemsCount === 1
+                ? "rubrica utilitzada"
+                : "rubriques utilitzades"}
             </p>
           )}
         </div>
@@ -53,7 +82,7 @@ function CategoryButton({
   );
 }
 
-// Component per mostrar un item seleccionable
+// Component per mostrar una rubrica seleccionable
 function ItemButton({ text, onClick, onRemove, usageCount }) {
   const isUsed = usageCount > 0;
 
@@ -78,7 +107,9 @@ function ItemButton({ text, onClick, onRemove, usageCount }) {
           ? "border-emerald-300 bg-emerald-50 hover:border-emerald-400 hover:bg-emerald-100 cursor-not-allowed opacity-70"
           : "border-gray-200 hover:border-indigo-400 hover:bg-indigo-50"
       }`}
-      title={isUsed ? "Aquest item ja està utilitzat a l'informe" : undefined}
+      title={
+        isUsed ? "Aquesta rubrica ja esta utilitzada a l'informe" : undefined
+      }
     >
       <div className="w-full flex items-start justify-between gap-3">
         <p
@@ -94,7 +125,7 @@ function ItemButton({ text, onClick, onRemove, usageCount }) {
             <button
               onClick={handleRemoveClick}
               className="text-red-500 hover:text-red-700 hover:bg-red-100 p-1 rounded transition-colors cursor-pointer"
-              title="Eliminar item de l'informe"
+              title="Eliminar rubrica de l'informe"
               type="button"
             >
               <svg
@@ -169,8 +200,10 @@ function CategorySelector({
 
   const handleItemSelect = (categoryKey, itemIndex) => {
     const category = categoriesData[categoryKey];
-    const itemText = category.items[itemIndex];
-    onSelectItem(itemText, category.name);
+    const rawItem = category.items[itemIndex];
+    const itemText = getItemText(rawItem);
+    const itemVariants = getItemVariants(category, itemIndex, rawItem);
+    onSelectItem(itemText, category.name, itemVariants);
   };
 
   // Vista de categories
@@ -182,7 +215,8 @@ function CategorySelector({
             (() => {
               const usageByItem = Array.isArray(category.items)
                 ? category.items.map(
-                    (itemText) => itemUsageMap[normalizeItemKey(itemText)] || 0,
+                    (item) =>
+                      itemUsageMap[normalizeItemKey(getItemText(item))] || 0,
                   )
                 : [];
 
@@ -212,7 +246,7 @@ function CategorySelector({
     );
   }
 
-  // Vista d'items d'una categoria
+  // Vista de rubriques d'una categoria
   if (view === "items" && selectedCategory) {
     const category = categoriesData[selectedCategory];
 
@@ -223,19 +257,17 @@ function CategorySelector({
             {category.name}
           </h4>
           <p className="text-sm text-gray-500">
-            Clica sobre un item per afegir-lo a l'informe
+            Clica sobre una rubrica per afegir-la a l'informe
           </p>
           <div className="mt-1 space-y-0.5">
             <p className="text-xs text-emerald-700">
               {
                 category.items.filter((itemText) => {
-                  const normalizedKey = String(itemText || "")
-                    .trim()
-                    .toLowerCase();
+                  const normalizedKey = normalizeItemKey(getItemText(itemText));
                   return itemUsageMap[normalizedKey] > 0;
                 }).length
               }{" "}
-              items utilitzats
+              rubriques utilitzades
             </p>
           </div>
         </div>
@@ -248,11 +280,11 @@ function CategorySelector({
         </div>
 
         <div className="space-y-2">
-          {category.items.map((itemText, index) => (
+          {category.items.map((item, index) => (
             <ItemButton
               key={index}
-              text={itemText}
-              usageCount={itemUsageMap[normalizeItemKey(itemText)] || 0}
+              text={getItemText(item)}
+              usageCount={itemUsageMap[normalizeItemKey(getItemText(item))] || 0}
               onClick={() => handleItemSelect(selectedCategory, index)}
               onRemove={onRemoveItem}
             />

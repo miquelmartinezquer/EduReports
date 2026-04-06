@@ -137,6 +137,22 @@ const getDraftByStudent = async(studentId) => {
     const draft = rows[0];
     const parsedElementsJson = draft.elements ? JSON.parse(draft.elements) : [];
     const isLegacyArrayFormat = Array.isArray(parsedElementsJson);
+    const isWizardV2 = parsedElementsJson?._type === 'wizard_v2';
+
+    if (isWizardV2) {
+        return {
+            ...draft,
+            selectedRoute: parsedElementsJson.selectedRoute || null,
+            evaluations: parsedElementsJson.evaluations || [],
+            wizardIndex: typeof parsedElementsJson.wizardIndex === 'number' ? parsedElementsJson.wizardIndex : 0,
+            conclusions: {
+                enabled: Boolean(parsedElementsJson.conclusions?.enabled),
+                title: parsedElementsJson.conclusions?.title || 'Observacions finals',
+                guidance: parsedElementsJson.conclusions?.guidance || null,
+            },
+            elements: [], // legacy compat
+        };
+    }
 
     return {
         ...draft,
@@ -157,6 +173,17 @@ const getDraftByStudent = async(studentId) => {
     };
 };
 
+const parseOptionsJson = (value) => {
+    if (!value) return [];
+    try {
+        const parsed = JSON.parse(value);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.map((o) => String(o || '').trim()).filter(Boolean);
+    } catch (_) {
+        return [];
+    }
+};
+
 const getCourseCategories = async(courseId) => {
     const categories = await query(
         'SELECT id, category_key AS categoryKey, name, color_key AS color FROM course_categories WHERE course_id = ? ORDER BY id',
@@ -164,7 +191,8 @@ const getCourseCategories = async(courseId) => {
     );
 
     const items = await query(
-        `SELECT cci.course_category_id AS courseCategoryId, cci.item_text AS itemText, cci.sort_order AS sortOrder
+        `SELECT cci.course_category_id AS courseCategoryId, cci.item_text AS itemText,
+                cci.response_options_json AS responseOptionsJson, cci.sort_order AS sortOrder
          FROM course_category_items cci
          INNER JOIN course_categories cc ON cc.id = cci.course_category_id
          WHERE cc.course_id = ?
@@ -173,9 +201,14 @@ const getCourseCategories = async(courseId) => {
     );
 
     const byCategoryId = {};
+    const byCategoryIdVariants = {};
     for (const item of items) {
-        if (!byCategoryId[item.courseCategoryId]) byCategoryId[item.courseCategoryId] = [];
+        if (!byCategoryId[item.courseCategoryId]) {
+            byCategoryId[item.courseCategoryId] = [];
+            byCategoryIdVariants[item.courseCategoryId] = [];
+        }
         byCategoryId[item.courseCategoryId].push(item.itemText);
+        byCategoryIdVariants[item.courseCategoryId].push(parseOptionsJson(item.responseOptionsJson));
     }
 
     const result = {};
@@ -184,6 +217,7 @@ const getCourseCategories = async(courseId) => {
             name: category.name,
             color: category.color,
             items: byCategoryId[category.id] || [],
+            itemVariants: byCategoryIdVariants[category.id] || [],
         };
     }
 

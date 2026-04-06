@@ -23,7 +23,15 @@ El JSON té aquest format:
       "type": "section",
       "title": "Títol de la secció",
       "items": [
-        { "content": "Text de l'ítem avaluatiu" }
+        {
+          "prompt": "Pregunta o item avaluatiu",
+          "evaluationTypes": ["tipus 1", "tipus 2"],
+          "availableOptions": ["opcio 1", "opcio 2"],
+          "selectedOption": "opcio triada o null",
+          "freeTextComment": "comentari manual o null",
+          "evaluationStatus": "evaluated/skipped/pending",
+          "content": "resum textual de la resposta"
+        }
       ]
     }
   ]
@@ -38,6 +46,11 @@ IMPORTANT - HAS DE SEGUIR L'ESTRUCTURA DEL JSON:
 6. RESPECTA L'ORDRE de les seccions tal com apareixen al JSON.
 7. Cada "section" del JSON ha de correspondre a un apartat de l'informe amb el seu títol.
 8. Mantén una correspondència literal amb els "items": no ampliïs el contingut amb idees noves.
+8.1. Per cada item, interpreta primer la resposta real del docent:
+  - prioritat 1: freeTextComment (si existeix i no és buit)
+  - prioritat 2: selectedOption
+  - si no hi ha resposta i evaluationStatus és skipped/pending: tracta-ho com a "no avaluat" i evita inventar contingut.
+8.2. availableOptions i evaluationTypes s'inclouen com a context de possibles respostes, pero no els has de llistar literalment al text final.
 9. NO inventis seccions noves. Només treballa amb les que t'arriben al JSON.
 10. L'apartat de conclusions NOMÉS s'ha d'afegir si conclusions.enabled és true.
 11. Si conclusions.title té contingut, utilitza'l com a títol de l'apartat final de conclusions.
@@ -88,6 +101,7 @@ IMPORTANT: No utilitzis <h1>. El títol principal es renderitza al frontend.
 INSTRUCCIONS DE CONTINGUT:
 - Per cada secció del JSON, crea un apartat amb el títol corresponent.
 - Reescriu cada item de forma clara i natural, sense afegir informació nova.
+- Si un item esta "no avaluat", pots indicar-ho de forma breu i neutral o ometre'l si no aporta contingut.
 - Mantén el mateix ordre dels items.
 - Si una secció té múltiples items, pots agrupar els relacionats en un o més paràgrafs amb transicions simples.
 - CONCLUSIÓ (OPCIONAL):

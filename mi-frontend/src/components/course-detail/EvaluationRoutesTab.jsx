@@ -13,7 +13,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import fetchWithAuth from "../../utils/fetchWithAuth";
 
-function TemplatesTab({ courseId, courseName, onEvaluationRoutesCountChange }) {
+function EvaluationRoutesTab({
+  courseId,
+  courseName,
+  onEvaluationRoutesCountChange,
+}) {
   const navigate = useNavigate();
   const [evaluationRoutes, setEvaluationRoutes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -201,7 +205,26 @@ function TemplatesTab({ courseId, courseName, onEvaluationRoutesCountChange }) {
               const rubricCount = Array.isArray(evaluationRoute.sections)
                 ? evaluationRoute.sections.reduce(
                     (acc, section) =>
-                      acc + (Array.isArray(section.rubrics) ? section.rubrics.length : 0),
+                      acc +
+                      (Array.isArray(section.items) ? section.items.length : 0),
+                    0,
+                  )
+                : 0;
+
+              const optionsCount = Array.isArray(evaluationRoute.sections)
+                ? evaluationRoute.sections.reduce(
+                    (accSections, section) =>
+                      accSections +
+                      (Array.isArray(section.items)
+                        ? section.items.reduce(
+                            (accItems, item) =>
+                              accItems +
+                              (Array.isArray(item.responseOptions)
+                                ? item.responseOptions.length
+                                : 0),
+                            0,
+                          )
+                        : 0),
                     0,
                   )
                 : 0;
@@ -217,7 +240,7 @@ function TemplatesTab({ courseId, courseName, onEvaluationRoutesCountChange }) {
                         {evaluationRoute.name}
                       </h4>
                       <p className="text-sm text-gray-600 mt-1">
-                        {sectionCount} {sectionCount === 1 ? "apartat" : "apartats"} · {rubricCount} {rubricCount === 1 ? "rubrica" : "rubriques"}
+                        {sectionCount} apartats · {rubricCount} rubriques · {optionsCount} opcions
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
                         Actualitzada:{" "}
@@ -294,4 +317,4 @@ function TemplatesTab({ courseId, courseName, onEvaluationRoutesCountChange }) {
   );
 }
 
-export default TemplatesTab;
+export default EvaluationRoutesTab;

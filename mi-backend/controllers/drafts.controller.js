@@ -81,13 +81,23 @@ const upsertDraftByStudent = async(req, res) => {
         course,
         language,
         elementCounter,
+        // New wizard_v2 format
+        selectedRoute,
+        evaluations,
+        wizardIndex,
     } = req.body;
 
     if (Number.isNaN(parsedStudentId)) {
         return res.status(400).json({ error: 'studentId invàlid' });
     }
 
-    if (!elements || !studentName || !course || !language || elementCounter === undefined) {
+    const isNewFormat = Boolean(selectedRoute);
+
+    if (!studentName || !course || !language) {
+        return res.status(400).json({ error: 'Falten dades obligatòries' });
+    }
+
+    if (!isNewFormat && (!elements || elementCounter === undefined)) {
         return res.status(400).json({ error: 'Falten dades obligatòries' });
     }
 
@@ -97,14 +107,21 @@ const upsertDraftByStudent = async(req, res) => {
             return res.status(access.notFound ? 404 : 403).json({ error: access.reason });
         }
 
-        const draftPayload = {
-            elements,
-            conclusions: {
-                enabled: Boolean(conclusions?.enabled),
-                title: conclusions?.title || 'Observacions finals',
-                guidance: conclusions?.guidance || null,
-            },
+        const normalizedConclusions = {
+            enabled: Boolean(conclusions?.enabled),
+            title: conclusions?.title || 'Observacions finals',
+            guidance: conclusions?.guidance || null,
         };
+
+        const draftPayload = isNewFormat
+            ? {
+                _type: 'wizard_v2',
+                selectedRoute,
+                evaluations: evaluations || [],
+                wizardIndex: wizardIndex || 0,
+                conclusions: normalizedConclusions,
+            }
+            : { elements, conclusions: normalizedConclusions };
 
         const existingRows = await query(
             `SELECT id
@@ -129,7 +146,7 @@ const upsertDraftByStudent = async(req, res) => {
                     studentName,
                     course,
                     language,
-                    elementCounter,
+                    isNewFormat ? (wizardIndex || 0) : elementCounter,
                     latestDraftId,
                 ],
             );
@@ -153,7 +170,7 @@ const upsertDraftByStudent = async(req, res) => {
                     studentName,
                     course,
                     language,
-                    elementCounter,
+                    isNewFormat ? (wizardIndex || 0) : elementCounter,
                 ],
             );
         }

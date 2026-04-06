@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const requireAuth = require('../middleware/requireAuth');
 const coursesController = require('../controllers/courses.controller');
-const templatesRoutes = require('./templates');
+const evaluationRoutes = require('./evaluationRoutes');
 
 router.use(requireAuth);
 
@@ -38,7 +38,7 @@ router.delete('/:courseId/categories/:key', coursesController.deleteCategory);
 router.post('/:courseId/categories/:key/items', coursesController.addCategoryItem);
 router.delete('/:courseId/categories/:key/items/:index', coursesController.deleteCategoryItem);
 
-router.use('/:courseId/templates', templatesRoutes);
+router.use('/:courseId/evaluation-routes', evaluationRoutes);
 
 router.get('/:courseId/students/:studentId/reports', coursesController.getStudentReports);
 router.get('/:courseId/students/:studentId/reports/latest', coursesController.getLatestStudentReport);

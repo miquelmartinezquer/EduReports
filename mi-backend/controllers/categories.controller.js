@@ -6,6 +6,30 @@ const sqlError = (res, context, error) => {
     return res.status(500).json({ error: 'SQL ERROR' });
 };
 
+const parseOptionsJson = (value) => {
+    if (!value) return [];
+
+    try {
+        const parsed = JSON.parse(value);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+            .map((option) => String(option || '').trim())
+            .filter(Boolean);
+    } catch (_error) {
+        return [];
+    }
+};
+
+const normalizeOptions = (options) => {
+    if (!Array.isArray(options)) return [];
+
+    return [...new Set(
+        options
+            .map((option) => String(option || '').trim())
+            .filter(Boolean),
+    )];
+};
+
 const ensureColorExists = async(colorKey) => {
     if (!colorKey) return;
 
@@ -28,7 +52,7 @@ const getUserCategories = async(req, res) => {
     try {
         const categories = await query(
             `SELECT uc.id, uc.category_key AS categoryKey, uc.name, uc.color_key AS color,
-                    uci.item_text AS itemText, uci.sort_order AS sortOrder
+                    uci.item_text AS itemText, uci.response_options_json AS responseOptionsJson, uci.sort_order AS sortOrder
              FROM user_categories uc
              LEFT JOIN user_category_items uci ON uci.user_category_id = uc.id
              WHERE uc.user_id = ?
@@ -43,9 +67,16 @@ const getUserCategories = async(req, res) => {
                     name: row.name,
                     color: row.color,
                     items: [],
+                    itemVariants: [],
                 };
             }
-            if (row.itemText) grouped[row.categoryKey].items.push(row.itemText);
+
+            if (row.itemText) {
+                grouped[row.categoryKey].items.push(row.itemText);
+                grouped[row.categoryKey].itemVariants.push(
+                    parseOptionsJson(row.responseOptionsJson),
+                );
+            }
         }
 
         res.json(grouped);
@@ -64,7 +95,7 @@ const getAvailableColors = async(req, res) => {
 };
 
 const createUserCategory = async(req, res) => {
-    const { key, name, color, items } = req.body;
+    const { key, name, color, items, itemVariants } = req.body;
     const userId = req.session.userId;
 
     if (!key || !name) {
@@ -90,9 +121,13 @@ const createUserCategory = async(req, res) => {
 
         if (Array.isArray(items)) {
             for (let i = 0; i < items.length; i += 1) {
+                const options = normalizeOptions(
+                    Array.isArray(itemVariants) ? itemVariants[i] : [],
+                );
+
                 await query(
-                    'INSERT INTO user_category_items (user_category_id, item_text, sort_order) VALUES (?, ?, ?)',
-                    [result.insertId, items[i], i],
+                    'INSERT INTO user_category_items (user_category_id, item_text, response_options_json, sort_order) VALUES (?, ?, ?, ?)',
+                    [result.insertId, items[i], JSON.stringify(options), i],
                 );
             }
         }
@@ -104,6 +139,11 @@ const createUserCategory = async(req, res) => {
                 name,
                 color: color || 'purple',
                 items: Array.isArray(items) ? items : [],
+                itemVariants: Array.isArray(items)
+                    ? items.map((_, index) =>
+                        normalizeOptions(Array.isArray(itemVariants) ? itemVariants[index] : []),
+                    )
+                    : [],
             },
         });
     } catch (error) {
@@ -113,7 +153,7 @@ const createUserCategory = async(req, res) => {
 
 const updateUserCategory = async(req, res) => {
     const { key } = req.params;
-    const { name, color, items } = req.body;
+    const { name, color, items, itemVariants } = req.body;
     const userId = req.session.userId;
 
     try {
@@ -140,15 +180,19 @@ const updateUserCategory = async(req, res) => {
         if (Array.isArray(items)) {
             await query('DELETE FROM user_category_items WHERE user_category_id = ?', [category.id]);
             for (let i = 0; i < items.length; i += 1) {
+                const options = normalizeOptions(
+                    Array.isArray(itemVariants) ? itemVariants[i] : [],
+                );
+
                 await query(
-                    'INSERT INTO user_category_items (user_category_id, item_text, sort_order) VALUES (?, ?, ?)',
-                    [category.id, items[i], i],
+                    'INSERT INTO user_category_items (user_category_id, item_text, response_options_json, sort_order) VALUES (?, ?, ?, ?)',
+                    [category.id, items[i], JSON.stringify(options), i],
                 );
             }
         }
 
         const itemRows = await query(
-            'SELECT item_text AS itemText FROM user_category_items WHERE user_category_id = ? ORDER BY sort_order, id',
+            'SELECT item_text AS itemText, response_options_json AS responseOptionsJson FROM user_category_items WHERE user_category_id = ? ORDER BY sort_order, id',
             [category.id],
         );
 
@@ -158,6 +202,7 @@ const updateUserCategory = async(req, res) => {
                 name: name || category.name,
                 color: color || category.color,
                 items: itemRows.map((i) => i.itemText),
+                itemVariants: itemRows.map((i) => parseOptionsJson(i.responseOptionsJson)),
             },
         });
     } catch (error) {
@@ -187,7 +232,7 @@ const deleteUserCategory = async(req, res) => {
 
 const addUserCategoryItem = async(req, res) => {
     const { key } = req.params;
-    const { item } = req.body;
+    const { item, responseOptions } = req.body;
     const userId = req.session.userId;
 
     if (!item) {
@@ -211,18 +256,19 @@ const addUserCategoryItem = async(req, res) => {
         );
 
         await query(
-            'INSERT INTO user_category_items (user_category_id, item_text, sort_order) VALUES (?, ?, ?)',
-            [categoryId, item, orderRows[0].nextOrder],
+            'INSERT INTO user_category_items (user_category_id, item_text, response_options_json, sort_order) VALUES (?, ?, ?, ?)',
+            [categoryId, item, JSON.stringify(normalizeOptions(responseOptions)), orderRows[0].nextOrder],
         );
 
         const itemRows = await query(
-            'SELECT item_text AS itemText FROM user_category_items WHERE user_category_id = ? ORDER BY sort_order, id',
+            'SELECT item_text AS itemText, response_options_json AS responseOptionsJson FROM user_category_items WHERE user_category_id = ? ORDER BY sort_order, id',
             [categoryId],
         );
 
         res.status(201).json({
             success: true,
             items: itemRows.map((i) => i.itemText),
+            itemVariants: itemRows.map((i) => parseOptionsJson(i.responseOptionsJson)),
         });
     } catch (error) {
         sqlError(res, 'userCategories POST /:key/items', error);
@@ -246,7 +292,7 @@ const deleteUserCategoryItem = async(req, res) => {
 
         const categoryId = rows[0].id;
         const itemRows = await query(
-            'SELECT id, item_text AS itemText FROM user_category_items WHERE user_category_id = ? ORDER BY sort_order, id',
+            'SELECT id, item_text AS itemText, response_options_json AS responseOptionsJson FROM user_category_items WHERE user_category_id = ? ORDER BY sort_order, id',
             [categoryId],
         );
 
@@ -257,13 +303,14 @@ const deleteUserCategoryItem = async(req, res) => {
         await query('DELETE FROM user_category_items WHERE id = ?', [itemRows[itemIndex].id]);
 
         const afterRows = await query(
-            'SELECT item_text AS itemText FROM user_category_items WHERE user_category_id = ? ORDER BY sort_order, id',
+            'SELECT item_text AS itemText, response_options_json AS responseOptionsJson FROM user_category_items WHERE user_category_id = ? ORDER BY sort_order, id',
             [categoryId],
         );
 
         res.json({
             success: true,
             items: afterRows.map((i) => i.itemText),
+            itemVariants: afterRows.map((i) => parseOptionsJson(i.responseOptionsJson)),
         });
     } catch (error) {
         sqlError(res, 'userCategories DELETE /:key/items/:index', error);

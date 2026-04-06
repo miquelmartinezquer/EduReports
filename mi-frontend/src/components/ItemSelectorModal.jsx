@@ -13,9 +13,9 @@ function ItemSelectorModal({
   sectionTitle,
   sectionItemCount = 0,
 }) {
-  const handleAddItem = (itemText, categoryName) => {
+  const handleAddItem = (itemText, categoryName, responseOptions = []) => {
     // Afegir l'item directament sense tancar el modal
-    onSelectItem(itemText, categoryName);
+    onSelectItem(itemText, categoryName, responseOptions);
   };
 
   const handleRemoveItem = (itemText) => {
@@ -31,10 +31,10 @@ function ItemSelectorModal({
         <div className="flex justify-between items-start p-6 border-b border-gray-200">
           <div className="flex-1">
             <h3 className="text-xl font-semibold text-gray-900">
-              Selecciona items d'avaluació
+              Selecciona rubriques d'avaluacio
             </h3>
             <p className="text-gray-500 text-sm mt-1">
-              Clica sobre els items per afegir-los a l'apartat
+              Clica sobre les rubriques per afegir-les a l'apartat
             </p>
             {sectionTitle && (
               <p className="text-indigo-600 text-sm font-medium mt-2 flex items-center gap-1.5">
@@ -54,7 +54,7 @@ function ItemSelectorModal({
                 </svg>
                 Apartat: {sectionTitle}
                 <span className="ml-1 bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-xs font-semibold">
-                  {sectionItemCount} {sectionItemCount === 1 ? "item" : "items"}
+                  {sectionItemCount} {sectionItemCount === 1 ? "rubrica" : "rubriques"}
                 </span>
               </p>
             )}

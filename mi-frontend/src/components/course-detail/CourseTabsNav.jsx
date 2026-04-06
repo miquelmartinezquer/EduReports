@@ -5,7 +5,7 @@ function CourseTabsNav({
   onChangeTab,
   course,
   totalItemsCount,
-  templatesCount = 0,
+  evaluationRoutesCount = 0,
 }) {
   return (
     <div className="mb-6 bg-white rounded-lg shadow">
@@ -41,18 +41,18 @@ function CourseTabsNav({
               : "text-gray-600 hover:text-gray-900"
           }`}
         >
-          Items ({totalItemsCount})
+          Rubriques ({totalItemsCount})
         </Button>
         <Button
-          onClick={() => onChangeTab("templates")}
+          onClick={() => onChangeTab("evaluation-routes")}
           variant="ghost"
           className={`flex-1 px-6 py-4 font-semibold transition-colors rounded-none ${
-            activeTab === "templates"
+            activeTab === "evaluation-routes"
               ? "text-indigo-600"
               : "text-gray-600 hover:text-gray-900"
           }`}
         >
-          Plantilles ({templatesCount})
+          Rutes d'avaluacio ({evaluationRoutesCount})
         </Button>
       </div>
     </div>

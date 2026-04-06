@@ -11,12 +11,12 @@ const BLOCK_CONFIGS = {
     placeholder: "Escriu el títol de l'apartat...",
   },
   item: {
-    label: "Item",
+    label: "Rubrica",
     borderColor: "border-gray-200",
     labelColor: "text-emerald-600",
     focusRing: "focus:ring-emerald-500 focus:border-emerald-500",
     inputType: "input",
-    placeholder: "Escriu el contingut d'aquest item...",
+    placeholder: "Escriu el contingut d'aquesta rubrica...",
   },
 };
 
@@ -144,7 +144,7 @@ function DraggableBlock({
             </span>
             {element.type === "header" && itemCount !== undefined && (
               <span className="bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                {itemCount} {itemCount === 1 ? "item" : "items"}
+                {itemCount} {itemCount === 1 ? "rubrica" : "rubriques"}
               </span>
             )}
           </div>

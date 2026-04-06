@@ -95,7 +95,7 @@ function ImportItemsDialog({ open, onOpenChange, onImport, isImporting }) {
     );
 
     if (!hasAtLeastOneItem) {
-      throw new Error("No s'ha trobat cap item per importar");
+      throw new Error("No s'ha trobat cap rubrica per importar");
     }
 
     return categories;
@@ -178,7 +178,7 @@ function ImportItemsDialog({ open, onOpenChange, onImport, isImporting }) {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "plantilla-importacio-items.csv";
+    link.download = "plantilla-importacio-rubriques.csv";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -190,10 +190,10 @@ function ImportItemsDialog({ open, onOpenChange, onImport, isImporting }) {
       <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="w-[96vw] max-w-5xl max-h-[92vh] overflow-hidden p-4 sm:p-5">
           <DialogHeader>
-            <DialogTitle>Importar Items</DialogTitle>
+            <DialogTitle>Importar Rubriques</DialogTitle>
             <DialogDescription>
               Prepara un fitxer de taula (com Excel o Google Sheets) amb les
-              categories a la primera fila i els items a les files següents.
+              categories a la primera fila i les rubriques a les files següents.
             </DialogDescription>
           </DialogHeader>
 
@@ -323,14 +323,14 @@ function ImportItemsDialog({ open, onOpenChange, onImport, isImporting }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar importació?</AlertDialogTitle>
             <AlertDialogDescription>
-              Si continues, es borraran totes les categories i tots els items
+              Si continues, es borraran totes les categories i totes les rubriques
               actuals del curs i se substituiran pel fitxer seleccionat.
               <br />
               <br />
               Fitxer: <strong>{selectedFileName || "(sense nom)"}</strong>
               <br />
               Dades detectades: <strong>{pendingCategories.length}</strong>{" "}
-              categories i <strong>{pendingItemsCount}</strong> items.
+              categories i <strong>{pendingItemsCount}</strong> rubriques.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

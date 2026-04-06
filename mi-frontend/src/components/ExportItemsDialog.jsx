@@ -20,9 +20,9 @@ function ExportItemsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-lg">
         <DialogHeader>
-          <DialogTitle>Exportar Items</DialogTitle>
+          <DialogTitle>Exportar Rubriques</DialogTitle>
           <DialogDescription>
-            Revisa el resum abans d'exportar els items del curs.
+            Revisa el resum abans d'exportar les rubriques del curs.
           </DialogDescription>
         </DialogHeader>
 
@@ -34,7 +34,7 @@ function ExportItemsDialog({
             </p>
           </div>
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-            <p className="text-xs font-medium text-emerald-700">Items totals</p>
+            <p className="text-xs font-medium text-emerald-700">Rubriques totals</p>
             <p className="mt-1 text-2xl font-bold text-emerald-900">
               {itemCount}
             </p>

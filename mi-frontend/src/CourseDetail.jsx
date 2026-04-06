@@ -34,9 +34,9 @@ import CourseTabsNav from "./components/course-detail/CourseTabsNav";
 import ClassesTab from "./components/course-detail/ClassesTab";
 import CollaboratorsTab from "./components/course-detail/CollaboratorsTab";
 import ItemsTab from "./components/course-detail/ItemsTab";
-import TemplatesTab from "./components/course-detail/TemplatesTab";
+import EvaluationRoutesTab from "./components/course-detail/EvaluationRoutesTab";
 
-const VALID_TABS = ["classes", "collaborators", "items", "templates"];
+const VALID_TABS = ["classes", "collaborators", "items", "evaluation-routes"];
 
 const getStoredTab = (storageKey) => {
   try {
@@ -64,13 +64,13 @@ function CourseDetail() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(() =>
     getStoredTab(activeTabStorageKey),
-  ); // 'classes', 'collaborators', 'items' o 'templates'
+  ); // 'classes', 'collaborators', 'items' o 'evaluation-routes'
   const [categories, setCategories] = useState({});
   const [studentReports, setStudentReports] = useState({}); // { studentId: report }
   const [studentDrafts, setStudentDrafts] = useState({}); // { studentId: draft }
   const [loadingStudents, setLoadingStudents] = useState(new Set()); // Set de studentIds que estan carregant
   const [pendingInvitations, setPendingInvitations] = useState([]);
-  const [templatesCount, setTemplatesCount] = useState(0);
+  const [evaluationRoutesCount, setEvaluationRoutesCount] = useState(0);
   const [availableColors, setAvailableColors] = useState([
     { key: "purple", name: "Porpra" },
     { key: "blue", name: "Blau" },
@@ -135,6 +135,8 @@ function CourseDetail() {
   const [itemCategoryKey, setItemCategoryKey] = useState(null);
   const [editingItemIndex, setEditingItemIndex] = useState(null);
   const [newItemText, setNewItemText] = useState("");
+  const [newItemVariants, setNewItemVariants] = useState([]);
+  const [newItemVariantDraft, setNewItemVariantDraft] = useState("");
   const [confirmDialog, setConfirmDialog] = useState({
     open: false,
     title: "",
@@ -166,7 +168,7 @@ function CourseDetail() {
     loadCategories();
     loadAvailableColors();
     loadPendingInvitations();
-    loadTemplatesCount();
+    loadEvaluationRoutesCount();
   }, [courseId]);
 
   useEffect(() => {
@@ -342,13 +344,13 @@ function CourseDetail() {
     }
   };
 
-  const loadTemplatesCount = async () => {
+  const loadEvaluationRoutesCount = async () => {
     try {
-      const data = await fetchWithAuth(`/courses/${courseId}/templates`);
-      setTemplatesCount(Array.isArray(data) ? data.length : 0);
+      const data = await fetchWithAuth(`/courses/${courseId}/evaluation-routes`);
+      setEvaluationRoutesCount(Array.isArray(data) ? data.length : 0);
     } catch (error) {
-      console.error("Error carregant recompte de plantilles:", error);
-      setTemplatesCount(0);
+      console.error("Error carregant recompte de rutes d'avaluacio:", error);
+      setEvaluationRoutesCount(0);
     }
   };
 
@@ -661,7 +663,31 @@ function CourseDetail() {
   const loadCategories = async () => {
     try {
       const data = await fetchWithAuth(`/courses/${courseId}/categories`);
-      setCategories(data);
+      const normalized = Object.entries(data || {}).reduce(
+        (acc, [key, category]) => {
+          const items = Array.isArray(category?.items) ? category.items : [];
+          const itemVariants = Array.isArray(category?.itemVariants)
+            ? category.itemVariants.map((variants) =>
+                Array.isArray(variants)
+                  ? variants
+                      .map((v) => String(v || "").trim())
+                      .filter(Boolean)
+                  : [],
+              )
+            : [];
+
+          acc[key] = {
+            ...category,
+            items,
+            itemVariants: items.map((_, index) =>
+              Array.isArray(itemVariants[index]) ? itemVariants[index] : [],
+            ),
+          };
+          return acc;
+        },
+        {},
+      );
+      setCategories(normalized);
     } catch (error) {
       console.error("Error carregant categories:", error);
     }
@@ -828,17 +854,29 @@ function CourseDetail() {
       title: "Eliminar categoria?",
       description: (
         <>
-          S'eliminara la categoria <strong>{categoryName}</strong> amb tots els
-          seus items.
+          S'eliminara la categoria <strong>{categoryName}</strong> amb totes
+          les seves rubriques.
         </>
       ),
       action: () => deleteCategory(key),
     });
   };
 
+  const addVariantDraft = () => {
+    const draft = String(newItemVariantDraft || "").trim();
+    if (!draft) return;
+
+    setNewItemVariants((prev) => (prev.includes(draft) ? prev : [...prev, draft]));
+    setNewItemVariantDraft("");
+  };
+
+  const removeVariantDraft = (variantToRemove) => {
+    setNewItemVariants((prev) => prev.filter((variant) => variant !== variantToRemove));
+  };
+
   const addItem = async (categoryKey) => {
     if (!newItemText.trim()) {
-      toast.error("Introdueix el text de l'item");
+      toast.error("Introdueix el text de la rubrica");
       return;
     }
 
@@ -848,7 +886,10 @@ function CourseDetail() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ item: newItemText }),
+          body: JSON.stringify({
+            item: newItemText,
+            responseOptions: newItemVariants,
+          }),
         },
       );
       if (data.success) {
@@ -857,17 +898,19 @@ function CourseDetail() {
         setItemCategoryKey(null);
         setEditingItemIndex(null);
         setNewItemText("");
-        toast.success("Item afegit correctament");
+        setNewItemVariants([]);
+        setNewItemVariantDraft("");
+        toast.success("Rubrica afegida correctament");
       }
     } catch (error) {
-      console.error("Error afegint item:", error);
-      toast.error("No s'ha pogut afegir l'item");
+      console.error("Error afegint rubrica:", error);
+      toast.error("No s'ha pogut afegir la rubrica");
     }
   };
 
   const updateItem = async (categoryKey, itemIndex) => {
     if (!newItemText.trim()) {
-      toast.error("Introdueix el text de l'item");
+      toast.error("Introdueix el text de la rubrica");
       return;
     }
 
@@ -879,6 +922,10 @@ function CourseDetail() {
 
     const updatedItems = [...category.items];
     updatedItems[itemIndex] = newItemText.trim();
+    const updatedItemVariants = Array.isArray(category.itemVariants)
+      ? [...category.itemVariants]
+      : category.items.map(() => []);
+    updatedItemVariants[itemIndex] = newItemVariants;
 
     try {
       const data = await fetchWithAuth(
@@ -886,7 +933,10 @@ function CourseDetail() {
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: updatedItems }),
+          body: JSON.stringify({
+            items: updatedItems,
+            itemVariants: updatedItemVariants,
+          }),
         },
       );
 
@@ -896,11 +946,13 @@ function CourseDetail() {
         setItemCategoryKey(null);
         setEditingItemIndex(null);
         setNewItemText("");
-        toast.success("Item actualitzat correctament");
+        setNewItemVariants([]);
+        setNewItemVariantDraft("");
+        toast.success("Rubrica actualitzada correctament");
       }
     } catch (error) {
-      console.error("Error actualitzant item:", error);
-      toast.error("No s'ha pogut actualitzar l'item");
+      console.error("Error actualitzant rubrica:", error);
+      toast.error("No s'ha pogut actualitzar la rubrica");
     }
   };
 
@@ -908,6 +960,8 @@ function CourseDetail() {
     setItemCategoryKey(categoryKey);
     setEditingItemIndex(null);
     setNewItemText("");
+    setNewItemVariants([]);
+    setNewItemVariantDraft("");
     setShowItemDialog(true);
   };
 
@@ -915,6 +969,9 @@ function CourseDetail() {
     setItemCategoryKey(categoryKey);
     setEditingItemIndex(itemIndex);
     setNewItemText(itemText || "");
+    const variants = categories?.[categoryKey]?.itemVariants?.[itemIndex];
+    setNewItemVariants(Array.isArray(variants) ? variants : []);
+    setNewItemVariantDraft("");
     setShowItemDialog(true);
   };
 
@@ -928,20 +985,20 @@ function CourseDetail() {
       );
       if (data.success) {
         await loadCategories();
-        toast.success("Item eliminat correctament");
+        toast.success("Rubrica eliminada correctament");
       }
     } catch (error) {
-      console.error("Error eliminant item:", error);
-      toast.error("No s'ha pogut eliminar l'item");
+      console.error("Error eliminant rubrica:", error);
+      toast.error("No s'ha pogut eliminar la rubrica");
     }
   };
 
   const requestRemoveItem = (categoryKey, itemIndex, itemText) => {
     openConfirmDialog({
-      title: "Eliminar item?",
+      title: "Eliminar rubrica?",
       description: (
         <>
-          S'eliminara l'item <strong>{itemText}</strong>.
+          S'eliminara la rubrica <strong>{itemText}</strong>.
         </>
       ),
       action: () => removeItem(categoryKey, itemIndex),
@@ -1006,7 +1063,9 @@ function CourseDetail() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "No s'ha pogut exportar els items");
+        throw new Error(
+          errorData.error || "No s'ha pogut exportar les rubriques",
+        );
       }
 
       const contentDisposition = response.headers.get("content-disposition");
@@ -1017,7 +1076,7 @@ function CourseDetail() {
         .replace(/\s+/g, "-")
         .replace(/[^a-z0-9-_]/g, "");
       const fileName =
-        fileNameMatch?.[1] || `${fallbackCourseName || "curs"}-items.csv`;
+        fileNameMatch?.[1] || `${fallbackCourseName || "curs"}-rubriques.csv`;
 
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
@@ -1030,10 +1089,10 @@ function CourseDetail() {
       window.URL.revokeObjectURL(blobUrl);
 
       setShowExportItemsDialog(false);
-      toast.success("Items exportats correctament");
+      toast.success("Rubriques exportades correctament");
     } catch (error) {
-      console.error("Error exportant items:", error);
-      toast.error(error.message || "No s'ha pogut exportar els items");
+      console.error("Error exportant rubriques:", error);
+      toast.error(error.message || "No s'ha pogut exportar les rubriques");
     } finally {
       setIsExportingItems(false);
     }
@@ -1056,12 +1115,12 @@ function CourseDetail() {
         await loadCategories();
         setShowImportItemsDialog(false);
         toast.success(
-          `Importació completada: ${data.imported.categories} categories i ${data.imported.items} items`,
+          `Importació completada: ${data.imported.categories} categories i ${data.imported.items} rubriques`,
         );
       }
     } catch (error) {
-      console.error("Error important items:", error);
-      toast.error(error.message || "No s'ha pogut importar els items");
+      console.error("Error important rubriques:", error);
+      toast.error(error.message || "No s'ha pogut importar les rubriques");
       throw error;
     } finally {
       setIsImportingItems(false);
@@ -1123,7 +1182,7 @@ function CourseDetail() {
           onChangeTab={setActiveTab}
           course={course}
           totalItemsCount={totalItemsCount}
-          templatesCount={templatesCount}
+          evaluationRoutesCount={evaluationRoutesCount}
         />
 
         {/* Content */}
@@ -1190,11 +1249,11 @@ function CourseDetail() {
           />
         )}
 
-        {activeTab === "templates" && (
-          <TemplatesTab
+        {activeTab === "evaluation-routes" && (
+          <EvaluationRoutesTab
             courseId={courseId}
             courseName={course.name}
-            onTemplatesCountChange={setTemplatesCount}
+            onEvaluationRoutesCountChange={setEvaluationRoutesCount}
           />
         )}
       </div>
@@ -1207,16 +1266,23 @@ function CourseDetail() {
             setItemCategoryKey(null);
             setEditingItemIndex(null);
             setNewItemText("");
+            setNewItemVariants([]);
+            setNewItemVariantDraft("");
           }
         }}
-        title={editingItemIndex !== null ? "Editar Item" : "Afegir Item"}
+        title={editingItemIndex !== null ? "Editar Rubrica" : "Afegir Rubrica"}
         description={
           editingItemIndex !== null
-            ? "Modifica el text de l'item."
-            : "Introdueix el text del nou item."
+            ? "Modifica el text de la rubrica."
+            : "Introdueix el text de la nova rubrica."
         }
         value={newItemText}
         onValueChange={setNewItemText}
+        variants={newItemVariants}
+        variantDraft={newItemVariantDraft}
+        onVariantDraftChange={setNewItemVariantDraft}
+        onAddVariant={addVariantDraft}
+        onRemoveVariant={removeVariantDraft}
         onSubmit={() => {
           if (!itemCategoryKey) return;
 
@@ -1227,7 +1293,7 @@ function CourseDetail() {
           }
         }}
         submitLabel={
-          editingItemIndex !== null ? "Guardar canvis" : "Afegir item"
+          editingItemIndex !== null ? "Guardar canvis" : "Afegir rubrica"
         }
       />
 

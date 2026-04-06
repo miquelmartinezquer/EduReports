@@ -26,7 +26,7 @@ function TemplateBuilder() {
 
   const courseId = searchParams.get("courseId");
   const courseName = searchParams.get("courseName") || "Curs";
-  const templateId = searchParams.get("templateId");
+  const routeId = searchParams.get("routeId");
 
   const [elements, setElements] = useState([]);
   const [elementCounter, setElementCounter] = useState(0);
@@ -35,10 +35,11 @@ function TemplateBuilder() {
   const [selectedHeaderId, setSelectedHeaderId] = useState(null);
   const [categoriesData, setCategoriesData] = useState({});
   const [availableColors, setAvailableColors] = useState([]);
-  const [templateName, setTemplateName] = useState("");
+  const [routeName, setRouteName] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [showClearTemplateModal, setShowClearTemplateModal] = useState(false);
+  const [optionDraftByItemId, setOptionDraftByItemId] = useState({});
   const [includeConclusions, setIncludeConclusions] = useState(false);
   const [conclusionsTitle, setConclusionsTitle] = useState(
     "Observacions finals",
@@ -92,16 +93,16 @@ function TemplateBuilder() {
     }
   };
 
-  const loadTemplate = async () => {
-    if (!courseId || !templateId) return;
+  const loadEvaluationRoute = async () => {
+    if (!courseId || !routeId) return;
 
     try {
-      const template = await fetchWithAuth(
-        `/courses/${courseId}/templates/${templateId}`,
+      const evaluationRoute = await fetchWithAuth(
+        `/courses/${courseId}/evaluation-routes/${routeId}`,
       );
 
-      const sections = Array.isArray(template.sections)
-        ? template.sections
+      const sections = Array.isArray(evaluationRoute.sections)
+        ? evaluationRoute.sections
         : [];
       const rebuiltElements = [];
       let counter = 0;
@@ -118,6 +119,9 @@ function TemplateBuilder() {
             type: "item",
             content: item.content || "",
             category: item.category || "Escriptura lliure",
+            responseOptions: Array.isArray(item.responseOptions)
+              ? item.responseOptions
+              : [],
           };
         });
 
@@ -130,25 +134,25 @@ function TemplateBuilder() {
         });
       });
 
-      setTemplateName(template.name || "");
+      setRouteName(evaluationRoute.name || "");
       setElements(rebuiltElements);
       setElementCounter(counter);
-      setIncludeConclusions(Boolean(template?.conclusions?.enabled));
+      setIncludeConclusions(Boolean(evaluationRoute?.conclusions?.enabled));
       setConclusionsTitle(
-        template?.conclusions?.title?.trim() || "Observacions finals",
+        evaluationRoute?.conclusions?.title?.trim() || "Observacions finals",
       );
-      setConclusionsGuidance(template?.conclusions?.guidance || "");
+      setConclusionsGuidance(evaluationRoute?.conclusions?.guidance || "");
     } catch (error) {
-      console.error("Error carregant plantilla:", error);
-      alert(error.message || "No s'ha pogut carregar la plantilla");
+      console.error("Error carregant ruta d'avaluacio:", error);
+      alert(error.message || "No s'ha pogut carregar la ruta d'avaluacio");
     }
   };
 
   useEffect(() => {
     loadCategories();
     loadColors();
-    loadTemplate();
-  }, [courseId, templateId]);
+    loadEvaluationRoute();
+  }, [courseId, routeId]);
 
   useEffect(() => {
     if (showItemModal) {
@@ -239,6 +243,7 @@ function TemplateBuilder() {
       type: "item",
       content: "",
       category: "Escriptura lliure",
+      responseOptions: [],
     };
 
     const updatedElements = [...elements];
@@ -283,6 +288,7 @@ function TemplateBuilder() {
       type: "item",
       content: itemText,
       category: categoryName,
+      responseOptions: [],
     };
 
     const updatedElements = [...elements];
@@ -318,9 +324,25 @@ function TemplateBuilder() {
 
   const removeElement = (headerId, itemId = null) => {
     if (itemId === null) {
+      const removedHeader = elements.find((el) => el.id === headerId);
+      if (removedHeader?.items?.length) {
+        setOptionDraftByItemId((prev) => {
+          const next = { ...prev };
+          removedHeader.items.forEach((item) => {
+            delete next[item.id];
+          });
+          return next;
+        });
+      }
       setElements(elements.filter((el) => el.id !== headerId));
       return;
     }
+
+    setOptionDraftByItemId((prev) => {
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
 
     const updatedElements = elements.map((el) => {
       if (el.id === headerId) {
@@ -362,6 +384,51 @@ function TemplateBuilder() {
     });
 
     setElements(updatedElements);
+  };
+
+  const updateItemResponseOptions = (headerId, itemId, updater) => {
+    setElements((prev) =>
+      prev.map((el) => {
+        if (el.id !== headerId) return el;
+
+        return {
+          ...el,
+          items: (el.items || []).map((item) => {
+            if (item.id !== itemId) return item;
+            const currentOptions = Array.isArray(item.responseOptions)
+              ? item.responseOptions
+              : [];
+            const nextOptions = updater(currentOptions)
+              .map((option) => String(option || "").trim())
+              .filter(Boolean);
+            return {
+              ...item,
+              responseOptions: [...new Set(nextOptions)],
+            };
+          }),
+        };
+      }),
+    );
+  };
+
+  const addResponseOption = (headerId, itemId) => {
+    const draftValue = String(optionDraftByItemId[itemId] || "").trim();
+    if (!draftValue) return;
+
+    updateItemResponseOptions(headerId, itemId, (options) => [
+      ...options,
+      draftValue,
+    ]);
+
+    setOptionDraftByItemId((prev) => ({ ...prev, [itemId]: "" }));
+  };
+
+  const removeResponseOption = (headerId, itemId, optionToRemove) => {
+    updateItemResponseOptions(
+      headerId,
+      itemId,
+      (options) => options.filter((opt) => opt !== optionToRemove),
+    );
   };
 
   const handleDragStart = (e, element) => {
@@ -452,18 +519,26 @@ function TemplateBuilder() {
     setDraggedElement(null);
   };
 
-  const buildTemplateData = () => {
+  const buildEvaluationRouteData = () => {
     const sections = elements
       .filter((el) => el.type === "header" && el.content.trim())
       .map((el) => ({
         title: el.content.trim(),
         items: (el.items || [])
           .filter((item) => item.content.trim())
-          .map((item) => ({ content: item.content.trim() })),
+          .map((item) => ({
+            content: item.content.trim(),
+            category: item.category || "Escriptura lliure",
+            responseOptions: Array.isArray(item.responseOptions)
+              ? item.responseOptions
+                  .map((option) => String(option || "").trim())
+                  .filter(Boolean)
+              : [],
+          })),
       }));
 
     return {
-      name: templateName.trim(),
+      name: routeName.trim(),
       courseId: courseId ? parseInt(courseId, 10) : null,
       courseName,
       sections,
@@ -482,19 +557,21 @@ function TemplateBuilder() {
     };
   };
 
-  const saveTemplate = async () => {
+  const saveEvaluationRoute = async () => {
     if (!courseId) {
-      toast.error("No s'ha pogut identificar el curs de la plantilla.");
+      toast.error("No s'ha pogut identificar el curs de la ruta.");
       return;
     }
 
-    if (!templateName.trim()) {
-      toast.error("Posa un nom a la plantilla.");
+    if (!routeName.trim()) {
+      toast.error("Posa un nom a la ruta d'avaluacio.");
       return;
     }
 
     if (elements.length === 0) {
-      toast.error("Afegeix almenys un apartat abans de guardar la plantilla.");
+      toast.error(
+        "Afegeix almenys un apartat abans de guardar la ruta d'avaluacio.",
+      );
       return;
     }
 
@@ -510,63 +587,68 @@ function TemplateBuilder() {
       return;
     }
 
-    const template = buildTemplateData();
+    const evaluationRoute = buildEvaluationRouteData();
 
     try {
       setIsSaving(true);
-      const url = templateId
-        ? `/courses/${courseId}/templates/${templateId}`
-        : `/courses/${courseId}/templates`;
-      const method = templateId ? "PUT" : "POST";
+      const url = routeId
+        ? `/courses/${courseId}/evaluation-routes/${routeId}`
+        : `/courses/${courseId}/evaluation-routes`;
+      const method = routeId ? "PUT" : "POST";
 
       await fetchWithAuth(url, {
         method,
         body: JSON.stringify({
-          name: template.name,
-          sections: template.sections,
-          conclusions: template.conclusions,
+          name: evaluationRoute.name,
+          sections: evaluationRoute.sections,
+          conclusions: evaluationRoute.conclusions,
         }),
       });
 
-      setSaveMessage("Plantilla guardada correctament");
+      setSaveMessage("Ruta d'avaluacio guardada correctament");
       setTimeout(() => setSaveMessage(""), 2500);
-      toast.success("Plantilla guardada correctament");
+      toast.success("Ruta d'avaluacio guardada correctament");
     } catch (error) {
-      console.error("Error guardant plantilla:", error);
-      toast.error(error.message || "No s'ha pogut guardar la plantilla");
+      console.error("Error guardant ruta d'avaluacio:", error);
+      toast.error(
+        error.message || "No s'ha pogut guardar la ruta d'avaluacio",
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
-  const saveTemplateSilentlyBeforeBack = async () => {
-    if (!courseId || !templateName.trim() || elements.length === 0) {
+  const saveRouteSilentlyBeforeBack = async () => {
+    if (!courseId || !routeName.trim() || elements.length === 0) {
       return;
     }
 
-    const template = buildTemplateData();
+    const evaluationRoute = buildEvaluationRouteData();
 
     try {
-      const url = templateId
-        ? `/courses/${courseId}/templates/${templateId}`
-        : `/courses/${courseId}/templates`;
-      const method = templateId ? "PUT" : "POST";
+      const url = routeId
+        ? `/courses/${courseId}/evaluation-routes/${routeId}`
+        : `/courses/${courseId}/evaluation-routes`;
+      const method = routeId ? "PUT" : "POST";
 
       await fetchWithAuth(url, {
         method,
         body: JSON.stringify({
-          name: template.name,
-          sections: template.sections,
-          conclusions: template.conclusions,
+          name: evaluationRoute.name,
+          sections: evaluationRoute.sections,
+          conclusions: evaluationRoute.conclusions,
         }),
       });
     } catch (error) {
-      console.error("Error auto-guardant plantilla abans de sortir:", error);
+      console.error(
+        "Error auto-guardant ruta d'avaluacio abans de sortir:",
+        error,
+      );
     }
   };
 
   const goBack = async () => {
-    await saveTemplateSilentlyBeforeBack();
+    await saveRouteSilentlyBeforeBack();
 
     if (courseId) {
       navigate(`/cursos/${courseId}`);
@@ -605,11 +687,11 @@ function TemplateBuilder() {
           </div>
           <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Creador de Plantilles
+              Creador de Rutes d'Avaluacio
             </h1>
             <p className="text-gray-600">
-              Crea una estructura reusable d'apartats i items per reutilitzar-la
-              en nous informes
+              Defineix preguntes d'avaluacio i opcions de comentari reutilitzables
+              per fer informes guiats
             </p>
           </div>
         </div>
@@ -633,19 +715,19 @@ function TemplateBuilder() {
                     />
                   </svg>
                 </div>
-                <h3 className="font-semibold text-gray-900">Plantilla</h3>
+                <h3 className="font-semibold text-gray-900">Ruta d'avaluacio</h3>
               </div>
 
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nom de la plantilla
+                    Nom de la ruta
                   </label>
                   <input
                     type="text"
-                    value={templateName}
-                    onChange={(e) => setTemplateName(e.target.value)}
-                    placeholder="Ex: Tutoría 2n trimestre"
+                    value={routeName}
+                    onChange={(e) => setRouteName(e.target.value)}
+                    placeholder="Ex: Seguiment 2n trimestre"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
@@ -700,7 +782,7 @@ function TemplateBuilder() {
                 </div>
 
                 <p className="text-xs text-gray-500">
-                  Aquesta pantalla només crea estructura: apartats i items.
+                  Cada item pot tenir diverses opcions de comentari per triar durant l'avaluacio guiada.
                 </p>
               </div>
             </div>
@@ -710,11 +792,11 @@ function TemplateBuilder() {
             <div className="bg-white rounded-lg shadow p-6">
               <div className="mb-6">
                 <h3 className="text-xl font-semibold text-gray-900 mb-1">
-                  Estructura de la Plantilla
+                  Estructura de la Ruta d'Avaluacio
                 </h3>
                 <p className="text-gray-500 text-sm">
                   Organitza blocs arrossegant-los. Afegeix apartats i items per
-                  construir la plantilla.
+                  construir la ruta.
                 </p>
               </div>
 
@@ -737,7 +819,7 @@ function TemplateBuilder() {
                       </svg>
                     </div>
                     <h4 className="text-lg font-medium text-gray-900 mb-2">
-                      Comença la teva plantilla
+                      Comença la teva ruta d'avaluacio
                     </h4>
                     <p className="text-gray-500 text-sm text-center max-w-xs mb-6">
                       Primer crea un apartat i després afegeix-hi items
@@ -776,24 +858,92 @@ function TemplateBuilder() {
                           {element.items && element.items.length > 0 && (
                             <div className="space-y-3 mb-3">
                               {element.items.map((item) => (
-                                <DraggableBlock
-                                  key={item.id}
-                                  element={item}
-                                  onDragStart={handleDragStart}
-                                  onDragEnd={handleDragEnd}
-                                  onDragOver={handleDragOver}
-                                  onDrop={handleDrop}
-                                  onContentChange={(id, content) =>
-                                    updateElementContent(
-                                      element.id,
-                                      content,
-                                      id,
-                                    )
-                                  }
-                                  onRemove={(id) =>
-                                    removeElement(element.id, id)
-                                  }
-                                />
+                                <div key={item.id} className="space-y-2">
+                                  <DraggableBlock
+                                    element={item}
+                                    onDragStart={handleDragStart}
+                                    onDragEnd={handleDragEnd}
+                                    onDragOver={handleDragOver}
+                                    onDrop={handleDrop}
+                                    onContentChange={(id, content) =>
+                                      updateElementContent(
+                                        element.id,
+                                        content,
+                                        id,
+                                      )
+                                    }
+                                    onRemove={(id) =>
+                                      removeElement(element.id, id)
+                                    }
+                                  />
+
+                                  <div className="ml-10 border border-gray-200 rounded-lg p-3 bg-gray-50">
+                                    <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                                      Opcions de comentari per aquest item
+                                    </p>
+
+                                    {Array.isArray(item.responseOptions) &&
+                                    item.responseOptions.length > 0 ? (
+                                      <div className="flex flex-wrap gap-2 mb-3">
+                                        {item.responseOptions.map((option) => (
+                                          <span
+                                            key={`${item.id}-${option}`}
+                                            className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-1 rounded-full"
+                                          >
+                                            {option}
+                                            <button
+                                              type="button"
+                                              className="text-indigo-700 hover:text-indigo-900"
+                                              onClick={() =>
+                                                removeResponseOption(
+                                                  element.id,
+                                                  item.id,
+                                                  option,
+                                                )
+                                              }
+                                            >
+                                              x
+                                            </button>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-gray-500 mb-3">
+                                        Sense opcions. El professor podra escriure text lliure o no avaluar.
+                                      </p>
+                                    )}
+
+                                    <div className="flex gap-2">
+                                      <input
+                                        type="text"
+                                        value={optionDraftByItemId[item.id] || ""}
+                                        onChange={(e) =>
+                                          setOptionDraftByItemId((prev) => ({
+                                            ...prev,
+                                            [item.id]: e.target.value,
+                                          }))
+                                        }
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            addResponseOption(element.id, item.id);
+                                          }
+                                        }}
+                                        placeholder="Ex: Mostra autonomia en les rutines"
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                          addResponseOption(element.id, item.id)
+                                        }
+                                      >
+                                        Afegir opcio
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
                               ))}
                             </div>
                           )}
@@ -833,11 +983,11 @@ function TemplateBuilder() {
                 </Button>
                 <Button
                   type="button"
-                  onClick={saveTemplate}
+                  onClick={saveEvaluationRoute}
                   variant="brand"
                   disabled={isSaving}
                 >
-                  Guardar plantilla
+                  Guardar ruta
                 </Button>
               </div>
             </div>
@@ -853,7 +1003,7 @@ function TemplateBuilder() {
           <AlertDialogHeader>
             <AlertDialogTitle>Netejar plantilla?</AlertDialogTitle>
             <AlertDialogDescription>
-              S'esborraran tots els apartats i items de la plantilla actual.
+              S'esborraran tots els apartats i items de la ruta actual.
               Aquesta accio no es pot desfer.
             </AlertDialogDescription>
           </AlertDialogHeader>

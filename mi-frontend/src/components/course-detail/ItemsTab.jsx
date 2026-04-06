@@ -46,7 +46,7 @@ function ItemsTab({
         <ExpandableActionButton
           type="button"
           onClick={onOpenImportItems}
-          label="Carregar Items"
+          label="Carregar Rubriques"
           variant="outline"
           size="lg"
           icon={
@@ -68,7 +68,7 @@ function ItemsTab({
         <ExpandableActionButton
           type="button"
           onClick={onOpenExportItems}
-          label="Descarregar Items"
+          label="Descarregar Rubriques"
           variant="outline"
           size="lg"
           icon={
@@ -110,7 +110,7 @@ function ItemsTab({
             No hi ha categories encara
           </h3>
           <p className="text-gray-500 text-sm">
-            Crea la primera categoria per organitzar els teus items
+            Crea la primera categoria per organitzar les teves rubriques
           </p>
         </div>
       ) : (
@@ -149,7 +149,7 @@ function ItemsTab({
                         {category.name}
                       </h4>
                       <p className="text-xs text-gray-500">
-                        Items: {category.items.length}
+                        Rubriques: {category.items.length}
                       </p>
                     </div>
                   </div>
@@ -222,9 +222,10 @@ function ItemsTab({
                     {category.items.map((item, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+                        className="p-2 bg-gray-50 rounded-lg"
                       >
-                        <span className="text-sm text-gray-700">{item}</span>
+                        <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">{item}</span>
                         <div className="flex items-center gap-1">
                           <Button
                             onClick={() =>
@@ -233,7 +234,7 @@ function ItemsTab({
                             variant="ghost"
                             size="icon-xs"
                             className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
-                            title="Editar item"
+                            title="Editar rubrica"
                           >
                             <svg
                               className="w-4 h-4"
@@ -272,6 +273,20 @@ function ItemsTab({
                             </svg>
                           </Button>
                         </div>
+                        </div>
+                        {Array.isArray(category.itemVariants?.[index]) &&
+                          category.itemVariants[index].length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {category.itemVariants[index].map((v, vi) => (
+                                <span
+                                  key={vi}
+                                  className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-full"
+                                >
+                                  Av{vi + 1}: {v}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                       </div>
                     ))}
 
@@ -293,7 +308,7 @@ function ItemsTab({
                           d="M12 4v16m8-8H4"
                         />
                       </svg>
-                      Afegir item
+                      Afegir rubrica
                     </Button>
                   </div>
                 )}

@@ -6,6 +6,13 @@ const sqlError = (res, context, error) => {
     return res.status(500).json({ error: 'SQL ERROR' });
 };
 
+const normalizeOptions = (options) => {
+    if (!Array.isArray(options)) return [];
+    return [...new Set(
+        options.map((o) => String(o || '').trim()).filter(Boolean),
+    )];
+};
+
 const ensureColorExists = async(colorKey) => {
     if (!colorKey) return;
 
@@ -776,7 +783,7 @@ const createCategory = async(req, res) => {
 
 const updateCategory = async(req, res) => {
     const { courseId, key } = req.params;
-    const { name, color, items } = req.body;
+    const { name, color, items, itemVariants } = req.body;
 
     try {
         const rows = await query(
@@ -804,9 +811,11 @@ const updateCategory = async(req, res) => {
         if (Array.isArray(items)) {
             await query('DELETE FROM course_category_items WHERE course_category_id = ?', [categoryId]);
             for (let i = 0; i < items.length; i += 1) {
+                const variants = Array.isArray(itemVariants) && Array.isArray(itemVariants[i])
+                    ? itemVariants[i] : [];
                 await query(
-                    'INSERT INTO course_category_items (course_category_id, item_text, sort_order) VALUES (?, ?, ?)',
-                    [categoryId, items[i], i],
+                    'INSERT INTO course_category_items (course_category_id, item_text, response_options_json, sort_order) VALUES (?, ?, ?, ?)',
+                    [categoryId, items[i], JSON.stringify(normalizeOptions(variants)), i],
                 );
             }
         }
@@ -843,7 +852,7 @@ const deleteCategory = async(req, res) => {
 
 const addCategoryItem = async(req, res) => {
     const { courseId, key } = req.params;
-    const { item } = req.body;
+    const { item, responseOptions } = req.body;
 
     if (!item) {
         return res.status(400).json({ error: 'item és requerit' });
@@ -866,8 +875,8 @@ const addCategoryItem = async(req, res) => {
         );
 
         await query(
-            'INSERT INTO course_category_items (course_category_id, item_text, sort_order) VALUES (?, ?, ?)',
-            [categoryId, item, orderRows[0].nextOrder],
+            'INSERT INTO course_category_items (course_category_id, item_text, response_options_json, sort_order) VALUES (?, ?, ?, ?)',
+            [categoryId, item, JSON.stringify(normalizeOptions(responseOptions || [])), orderRows[0].nextOrder],
         );
 
         const categories = await readModel.getCourseCategories(parseInt(courseId));
