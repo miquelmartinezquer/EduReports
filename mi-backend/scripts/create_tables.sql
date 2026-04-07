@@ -45,7 +45,7 @@ CREATE TABLE courses (
   created_at DATE NOT NULL,
   PRIMARY KEY (id),
   KEY idx_courses_user_id (user_id),
-  CONSTRAINT fk_courses_user
+  CONSTRAINT fk_courses_usercour
     FOREIGN KEY (user_id) REFERENCES users(id)
     ON DELETE CASCADE
     ON UPDATE CASCADE
@@ -262,6 +262,7 @@ CREATE TABLE course_category_items (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   course_category_id INT UNSIGNED NOT NULL,
   item_text TEXT NOT NULL,
+  response_options_json LONGTEXT NULL,
   sort_order INT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   KEY idx_course_category_items_category_id (course_category_id),
